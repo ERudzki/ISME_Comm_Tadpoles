@@ -1,0 +1,108 @@
+---
+title: "Tadpole_Decontam"
+author: "Elizabeth N. Rudzki"
+date: "2023-07-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+if (!requireNamespace("devtools", quietly = TRUE)){install.packages("devtools")}
+devtools::install_github("jbisanz/qiime2R") # current version is 0.99.20
+library(qiime2R)
+library(tidyverse)
+
+BiocManager::install("decontam")
+library(decontam)
+
+BiocManager::install("phyloseq")
+library(phyloseq)
+```
+
+Using Qiime2R, create a phyloseq item.
+```{r qiime-to-phyloseq}
+##Qiime2R
+physeq<-qza_to_phyloseq(
+    features="table.qza",
+    tree="rooted-tree.qza",
+    taxonomy="taxonomy.qza",
+    metadata = "Tadpole_Metadata_All_Q2.txt"
+    )
+physeq
+```
+
+
+```{r librarysize, echo = FALSE}
+## Inspect Library Sizes 
+df <- as.data.frame(sample_data(physeq))
+df$LibrarySize <- sample_sums(physeq)
+df <- df[order(df$LibrarySize),]
+df$Index <- seq(nrow(df))
+ggplot(data=df, aes(x=Index, y=LibrarySize, color=Control)) + geom_point()
+```
+
+
+Decontam
+
+First I will use the extraction blanks to identify contaminants. Using a threshold of 0.5, these are the taxa identified as contaminants:
+
+```{r decontam 0.5, echo = FALSE}
+# make new variable where blanks are "TRUE"
+sample_data(physeq)$is.neg <- sample_data(physeq)$Control == "TRUE"
+
+# run decontam
+contamdf.prev <- isContaminant(physeq, method="prevalence", neg="is.neg", threshold=0.5)
+
+# identify which taxa are contaminants
+table(contamdf.prev$contaminant)
+contams <- which(contamdf.prev$contaminant)
+
+# list contaminants
+tax <- as(tax_table(physeq), "matrix")
+head(tax[contams,])
+```
+
+I will also make a plot that shows prevalence in the negatives and in true samples, to check how they are getting classified.
+
+```{r decontam plot, echo = FALSE}
+# presence-absence phyloseq for controls and samples
+ps.pa <- transform_sample_counts(physeq, function(abund) 1*(abund>0))
+ps.pa.neg <- prune_samples(sample_data(ps.pa)$Control == "TRUE", ps.pa)
+ps.pa.pos <- prune_samples(sample_data(ps.pa)$Control == "FALSE", ps.pa)
+
+# make dataframe for prevalence
+df.pa <- data.frame(pa.pos=taxa_sums(ps.pa.pos), pa.neg=taxa_sums(ps.pa.neg),
+                    contaminant=contamdf.prev$contaminant)
+ggplot(data=df.pa, aes(x=pa.neg, y=pa.pos, color=contaminant)) +
+  geom_point() +
+  xlab("Prevalence (blanks)") +
+  ylab("Prevalence (samples)") +
+  ggtitle("Threshold = 0.5") +
+  geom_abline(slope = 1, intercept = 0)
+```
+
+Samples seem to split pretty cleanly into a branch that shows up mostly in positive samples, and another that shows up mostly in negative controls, and the contaminant assignment (at default probability threshold) has done a good job of identifying those mostly in negative controls. 
+
+```{r remove contaminants, echo = FALSE}
+# remove taxa from phyloseq
+physeq.decontam <- prune_taxa(!contamdf.prev$contaminant, physeq)
+
+# set up df with readcounts and % removed
+readcounts <- data.frame(matrix(ncol = 0, nrow = 418))
+readcounts$pre <- as.data.frame(sample_sums(physeq))
+readcounts$post <- sample_sums(physeq.decontam)
+readcounts$per.removed <- ((readcounts$pre - readcounts$post)/readcounts$pre) *100
+
+head(readcounts$per.removed)
+
+# print otu table for contaminants
+aqqq<-as.data.frame(otu_table(physeq)) %>% slice(contams)
+```
+ 
+```

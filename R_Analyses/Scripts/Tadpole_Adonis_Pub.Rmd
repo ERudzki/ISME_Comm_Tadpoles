@@ -1,0 +1,279 @@
+---
+title: "Tadpole_Adonis"
+author: "Elizabeth N. Rudzki"
+date: "2025-06-23"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    number_sections: true
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+if (!requireNamespace("vegan", quietly = TRUE)){install.packages("vegan")}
+library(vegan)
+if (!requireNamespace("devtools", quietly = TRUE)){install.packages("devtools")}
+library(devtools)
+if (!requireNamespace("qiime2R", quietly = TRUE)){devtools::install_github("jbisanz/qiime2R")}
+library(qiime2R)
+#utils::sessionInfo()
+```
+# Dependencies
+
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-apple-darwin20 (64-bit)
+Running under: macOS 15.5
+
+attached base packages:
+
+**Package Name**  | **Version**
+------------- | -------------
+stats  | 4.3.3
+graphics  | 4.3.3
+grDevices  | 4.3.3
+utils  | 4.3.3
+datasets  | 4.3.3
+methods  | 4.3.3
+base  | 4.3.3
+
+other attached packages:
+
+**Package Name**  | **Version**  | **Imports**
+------------- | ------------- | -------------
+qiime2R  | 0.99.6  | ape (>= 5.2), Biostrings (>= 2.46.0), biomformat (>= 1.6.0), phyloseq (>= 1.22.3), Hmisc (>= 4.1-1), yaml (>= 2.2.0), tidyr (>= 0.8.3), dplyr (>= 0.8.1), stats, utils
+devtools  | 2.4.5  | cli (>= 3.3.0), desc (>= 1.4.1), ellipsis (>= 0.3.2), fs (>= 1.5.2), lifecycle (>= 1.0.1), memoise (>= 2.0.1), miniUI (>= 0.1.1.1), pkgbuild (>= 1.3.1), pkgdown (>= 2.0.6), pkgload (>= 1.3.0), profvis (>= 0.3.7), rcmdcheck (>= 1.4.0), remotes (>= 2.4.2), rlang (>= 1.0.4), roxygen2 (>= 7.2.1), rversions (>= 2.1.1), sessioninfo (>= 1.2.2), stats, testthat (>= 3.1.5), tools, urlchecker (>= 1.0.1), utils, withr (>= 2.5.0)
+usethis  | 3.1.0  | cli (>= 3.0.1), clipr (>= 0.3.0), crayon, curl (>= 2.7), desc (>= 1.4.2), fs (>= 1.3.0), gert (>= 1.4.1), gh (>= 1.2.1), glue (>= 1.3.0), jsonlite, lifecycle (>= 1.0.0), purrr, rappdirs, rlang (>= 1.1.0), rprojroot (>= 1.2), rstudioapi, stats, tools, utils, whisker, withr (>= 2.3.0), yaml
+vegan  | 2.7-1  | MASS, cluster, lattice, mgcv
+permute  | 0.9-7  | stats
+
+# Functions of qiime2R
+
+read_qza() - Function for reading artifacts (.qza).
+
+qza_to_phyloseq() - Imports multiple artifacts to produce a phyloseq object.
+
+read_q2metadata() - Reads qiime2 metadata file (containing q2-types definition line).
+
+write_q2manifest() - Writes a read manifest file to import data into qiime2.
+
+theme_q2r() - A ggplot2 theme for publication-type figures.
+
+print_provenance() - A function to display provenance information.
+
+is_q2metadata() - A function to check if a file is a qiime2 metadata file.
+
+parse_taxonomy() - A function to parse taxonomy strings and return a table where each column is a taxonomic class.
+
+parse_ordination() - A function to parse the internal ordination format.
+
+# Nomenclature
+
+The manuscript and code files may utilize different naming conventions for groups and treatments as follows:
+
+**Manuscript Name**  | **Related Script Name(s)**
+------------- | -------------
+Sample Type  | Type
+Microbial Depletion  | Depletion, Dep, or Treatment
+Microbial Density  | Concentration, Con, PW_Percentage, or Percentage
+Pond Source | Pond, or Pond_Treatment
+
+# Data Descriptions
+
+## Full Dataset
+This is the full dataset of all samples including water inoculation control/source samples, water samples from Week 4 Day 0 and water samples from Week 4 Day 6 for both control (uninhabited) and inhabited tanks, skin samples, and gut samples, after running decontam and rarefying to a depth of 30 reads. Kit control samples and PCR blanks have been removed. Here, we first run ADONIS to test "Type", a categorical factor of three levels: "Gut", "Skin", and "Water", to determine whether samples statistically cluster by Sample Type ("Type").
+
+
+## Data Subsets {.tabset}
+
+We then subset the data into the following groups for the purpose of ADONIS:
+
+### Water Subsets
+Water data subsets include only water samples from inhabited tanks, sampled on Week 4 Day 6.
+
+Water - Depletion Groups (data subset directory "core-metrics-results-water-dep")
+* 0% ("LW") Untreated ("U") samples
+* 25% ("PLE" or "PM") Untreated ("U") samples
+* 25% ("PLE" or "PM") Autoclaved ("A") samples
+* 25% ("PLE" or "PM") Filtered ("F") samples
+
+Water - Concentration Groups (data subset directory "core-metrics-results-water-con")
+* 1%, 25%, 50%, 75%, and 100% ("PLE" or "PM") Untreated ("U") samples
+
+
+### Gut and Skin Subsets
+Gut - Depletion Groups (data subset directory "core-metrics-results-gut-dep")
+* 0% ("LW") Untreated ("U") samples
+* 25% ("PLE" or "PM") Untreated ("U") gut samples
+* 25% ("PLE" or "PM") Autoclaved ("A") gut samples
+* 25% ("PLE" or "PM") Filtered ("F") gut samples
+Gut - Concentration Groups (data subset directory "core-metrics-results-gut-con")
+* 1%, 25%, 50%, and 100% ("PLE" or "PM") Untreated ("U") gut samples
+Skin - Depletion Groups (data subset directory "core-metrics-results-skin-dep")
+* 0% ("LW") Untreated ("U") skin samples
+* 25% ("PLE" or "PM") Untreated ("U") skin samples
+* 25% ("PLE" or "PM") Autoclaved ("A") skin samples
+* 25% ("PLE" or "PM") Filtered ("F") skin samples
+Skin - Concentration Groups (data subset directory "core-metrics-results-skin-con")
+* 1%, 25%, 50%^¥^, and 100% ("PLE" or "PM") Untreated ("U") skin samples
+  ^¥ 50% group is not present for PLE tadpole skin comparisons^
+  
+## Metadata Variable Descriptions
+
+In the ADONIS formulas the following metadata variables are tested for depletion comparisons:
+
+**Variable Name**  | **Description**
+------------- | -------------
+Treatment  | Categorical factor of 3 levels: A, F, U
+Pond  | Categorical factor of 3 levels: LW, PLE, PM
+
+*Note: We did not include percentage as a variable in these comparison as it resulted in 0 DF and -Inf F, and does not explain any additional variation.*
+
+In the ADONIS formulas the following metadata variables are tested for concentration comparisons:
+
+**Variable Name**  | **Description**
+------------- | -------------
+Pond  | Categorical factor of 2 levels: PLE, PM
+Percentage  | Numeric factor of 3-5 levels: 1, 25, 50^¥^, 75^†^, 100
+  ^¥ 50% group is not present for PLE tadpole skin comparisons^
+  ^† 75% group is only present for water samples^
+
+```{r seed, include=FALSE}
+# SET SEED
+set.seed(745869)
+## This will allow others to reproduce your exact ADONIS numbers.
+```
+
+# ADONIS Results {.tabset} 
+
+## Full Dataset
+
+```{r Adonis2 all}
+### TEST BY SAMPLE TYPE
+### Import bray curtis distance matrix exported from QIIME2
+bray_all <- read.table(file = '/core-metrics-results-decontam-d500-sampletype/exported_alpha/bray_curtis/distance-matrix.tsv', header = TRUE)
+### Convert to data matrix
+bray_all = data.matrix(bray_all)
+### Import metadata file
+metadata_all = read_q2metadata("Tadpole_Metadata_SampleType_Q2.txt")
+
+### Run adonis to test whether samples statistically differ by "Type"
+adonis2(bray_all ~ Type, data = metadata_all, permutations = 100000)
+
+### Do the same for Jaccard
+jacc_all <- read.table(file = '/core-metrics-results-decontam-d500-sampletype/exported_alpha/jaccard/distance-matrix.tsv',header = TRUE)
+jacc_all = data.matrix(jacc_all)
+metadata_all = read_q2metadata("Tadpole_Metadata_SampleType_Q2.txt")
+
+adonis2(jacc_all ~ Type, data = metadata_all, permutations = 100000)
+```
+
+## Water Samples {.tabset .tabset-pills}
+
+### Depletion
+
+```{r Adonis2 water dep}
+bray_water_dep=read.table(file = '/core-metrics-results-water-dep/exported_alpha/bray_curtis/distance-matrix.tsv',
+                    sep = '\t', header = TRUE)
+bray_water_dep=data.matrix(bray_water_dep)
+jaccard_water_dep=read.table(file = '/core-metrics-results-water-dep/exported_alpha/jaccard/distance-matrix.tsv',
+                    sep = '\t', header = TRUE)
+jaccard_water_dep=data.matrix(jaccard_water_dep)
+metadata_water_dep<-read_q2metadata("/core-metrics-results-water-dep/Tadpole_Metadata_Water_Qiime2R_Dep.txt")
+
+#### Jaccard ADONIS
+adonis2(jaccard_water_dep ~ Treatment + Pond, data = metadata_water_dep, by = "margin", permutations = 100000)
+#### Bray Curtis ADONIS
+adonis2(bray_water_dep ~ Treatment + Pond, data = metadata_water_dep, by = "margin", permutations = 100000)
+```
+
+### Concentration
+```{r Adonis2 water con}
+bray_water_con=read.table(file = '/core-metrics-results-water-con/exported_alpha/bray_curtis/distance-matrix.tsv',
+                    sep = '\t', header = TRUE)
+bray_water_con=data.matrix(bray_water_con)
+jaccard_water_con=read.table(file = '/core-metrics-results-water-con/exported_alpha/jaccard/distance-matrix.tsv',
+                    sep = '\t', header = TRUE)
+jaccard_water_con=data.matrix(jaccard_water_con)
+metadata_water_con<-read_q2metadata("/core-metrics-results-water-con/Tadpole_Metadata_Water_Qiime2R_Con.txt")
+
+#### Jaccard ADONIS
+adonis2(jaccard_water_con ~ Percentage + Pond, data = metadata_water_con, by = "margin", permutations = 100000)
+#### Bray Curtis ADONIS
+adonis2(bray_water_con ~ Percentage + Pond, data = metadata_water_con, by = "margin", permutations = 100000)
+```
+
+## Gut Samples {.tabset .tabset-pills}
+
+### Depletion
+
+```{r Adonis2 gut dep}
+##### Import bray and jaccard distance matrixes and metadata files
+bray_gut_dep=read.table(file = '/core-metrics-results-gut-dep/exported_alpha/bray_curtis/distance-matrix.tsv',
+                    sep = '\t', header = TRUE)
+bray_gut_dep=data.matrix(bray_gut_dep)
+jaccard_gut_dep=read.table(file = '/core-metrics-results-gut-dep/exported_alpha/jaccard/distance-matrix.tsv',
+                    sep = '\t', header = TRUE)
+jaccard_gut_dep=data.matrix(jaccard_gut_dep)
+metadata_gut_dep<-read_q2metadata("/core-metrics-results-gut-dep/Tadpole_Metadata_Gut_Qiime2R_Dep.txt")
+
+#### Jaccard ADONIS
+adonis2(jaccard_gut_dep ~ Treatment + Pond, data = metadata_gut_dep, by = "margin", permutations = 100000)
+#### Bray Curtis ADONIS
+adonis2(bray_gut_dep ~ Treatment + Pond, data = metadata_gut_dep, by = "margin", permutations = 100000)
+```
+
+### Concentration
+
+```{r Adonis2 gut con}
+### Concentration
+bray_gut_con=read.table(file = '/core-metrics-results-gut-con/exported_alpha/bray_curtis/distance-matrix.tsv',
+                    sep = '\t', header = TRUE)
+bray_gut_con=data.matrix(bray_gut_con)
+jaccard_gut_con=read.table(file = '/core-metrics-results-gut-con/exported_alpha/jaccard/distance-matrix.tsv',
+                    sep = '\t', header = TRUE)
+jaccard_gut_con=data.matrix(jaccard_gut_con)
+metadata_gut_con<-read_q2metadata("/core-metrics-results-gut-con/Tadpole_Metadata_Gut_Qiime2R_Con.txt")
+
+#### Jaccard ADONIS
+adonis2(jaccard_gut_con ~ Percentage + Pond, data = metadata_gut_con, by = "margin", permutations = 100000)
+#### Bray Curtis ADONIS
+adonis2(bray_gut_con ~ Percentage + Pond, data = metadata_gut_con, by = "margin", permutations = 100000)
+```
+
+## Skin Samples {.tabset .tabset-pills}
+
+### Depletion
+
+```{r Adonis2 skin dep}
+bray_skin_dep=read.table(file = '/core-metrics-results-skin-dep/exported_alpha/bray_curtis/distance-matrix.tsv',
+                    sep = '\t', header = TRUE)
+bray_skin_dep=data.matrix(bray_skin_dep)
+jaccard_skin_dep=read.table(file = '/core-metrics-results-skin-dep/exported_alpha/jaccard/distance-matrix.tsv',
+                    sep = '\t', header = TRUE)
+jaccard_skin_dep=data.matrix(jaccard_skin_dep)
+metadata_skin_dep<-read_q2metadata("/core-metrics-results-skin-dep/Tadpole_Metadata_Skin_Qiime2R_Dep.txt")
+
+#### Jaccard ADONIS
+adonis2(jaccard_skin_dep ~ Treatment + Pond, data = metadata_skin_dep, by = "margin", permutations = 100000)
+#### Bray Curtis ADONIS
+adonis2(bray_skin_dep ~ Treatment + Pond, data = metadata_skin_dep, by = "margin", permutations = 100000)
+```
+
+### Concentration
+
+```{r Adonis2 skin con}
+### Concentration
+bray_skin_con=read.table(file = '/core-metrics-results-skin-con/exported_alpha/bray_curtis/distance-matrix.tsv',
+                    sep = '\t', header = TRUE)
+bray_skin_con=data.matrix(bray_skin_con)
+jaccard_skin_con=read.table(file = '/core-metrics-results-skin-con/exported_alpha/jaccard/distance-matrix.tsv',
+                    sep = '\t', header = TRUE)
+jaccard_skin_con=data.matrix(jaccard_skin_con)
+metadata_skin_con<-read_q2metadata("/core-metrics-results-skin-con/Tadpole_Metadata_Skin_Qiime2R_Con.txt")
+
+#### Jaccard ADONIS
+adonis2(jaccard_skin_con ~ Percentage + Pond, data = metadata_skin_con, by = "margin", permutations = 100000)
+#### Bray Curtis ADONIS
+adonis2(bray_skin_con ~ Percentage + Pond, data = metadata_skin_con, by = "margin", permutations = 100000)
+```

@@ -1,0 +1,507 @@
+---
+title: "Tadpole_Beta_Diversity_Plots"
+author: "Elizabeth N. Rudzki"
+date: "2025-06-23"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+if (!requireNamespace("devtools", quietly = TRUE)){install.packages("devtools")}
+library(devtools)
+if (!requireNamespace("qiime2R", quietly = TRUE)){devtools:install_github("jbisanz/qiime2R")}
+library(qiime2R)
+if (!requireNamespace("ggplot2", quietly = TRUE)){install.packages("ggplot2")}
+library(ggplot2)
+if (!requireNamespace("tidyverse", quietly = TRUE)){install.packages("tidyverse")}
+library(tidyverse)
+if (!requireNamespace("ggpubr", quietly = TRUE)){install.packages("ggpubr")}
+library(ggpubr)
+if (!requireNamespace("lubridate", quietly = TRUE)){install.packages("lubridate")}
+library(lubridate)
+if (!requireNamespace("forcats", quietly = TRUE)){install.packages("forcats")}
+library(forcats)
+if (!requireNamespace("stringr", quietly = TRUE)){install.packages("stringr")}
+library(stringr)
+if (!requireNamespace("dplyr", quietly = TRUE)){install.packages("dplyr")}
+library(dplyr)
+if (!requireNamespace("purrr", quietly = TRUE)){install.packages("purrr")}
+library(purrr)
+if (!requireNamespace("readr", quietly = TRUE)){install.packages("readr")}
+library(readr)
+if (!requireNamespace("tidyr", quietly = TRUE)){install.packages("tidyr")}
+library(tidyr)
+if (!requireNamespace("tibble", quietly = TRUE)){install.packages("tibble")}
+library(tibble)
+if (!requireNamespace("usethis", quietly = TRUE)){install.packages("usethis")}
+library(usethis)
+```
+# Dependencies {.tabset}
+
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-apple-darwin20 (64-bit)
+Running under: macOS 15.5
+
+## Attached base packages:
+
+**Package Name**  | **Version**
+------------- | -------------
+stats  | 4.3.3
+graphics  | 4.3.3
+grDevices  | 4.3.3
+utils  | 4.3.3
+datasets  | 4.3.3
+methods  | 4.3.3
+base  | 4.3.3
+
+## Other attached packages:
+
+**Package Name**  | **Version**  | **Imports**
+------------- | ------------- | -------------
+qiime2R  | 0.99.6  | ape (>= 5.2), Biostrings (>= 2.46.0), biomformat (>= 1.6.0), phyloseq (>= 1.22.3), Hmisc (>= 4.1-1), yaml (>= 2.2.0), tidyr (>= 0.8.3), dplyr (>= 0.8.1), stats, utils  
+devtools  | 2.4.5  | cli (>= 3.3.0), desc (>= 1.4.1), ellipsis (>= 0.3.2), fs (>= 1.5.2), lifecycle (>= 1.0.1), memoise (>= 2.0.1), miniUI (>= 0.1.1.1), pkgbuild (>= 1.3.1), pkgdown (>= 2.0.6), pkgload (>= 1.3.0), profvis (>= 0.3.7), rcmdcheck (>= 1.4.0), remotes (>= 2.4.2), rlang (>= 1.0.4), roxygen2 (>= 7.2.1), rversions (>= 2.1.1), sessioninfo (>= 1.2.2), stats, testthat (>= 3.1.5), tools, urlchecker (>= 1.0.1), utils, withr (>= 2.5.0)
+usethis  | 3.1.0  | cli (>= 3.0.1), clipr (>= 0.3.0), crayon, curl (>= 2.7), desc (>= 1.4.2), fs (>= 1.3.0), gert (>= 1.4.1), gh (>= 1.2.1), glue (>= 1.3.0), jsonlite, lifecycle (>= 1.0.0), purrr, rappdirs, rlang (>= 1.1.0), rprojroot (>= 1.2), rstudioapi, stats, tools, utils, whisker, withr (>= 2.3.0), yaml
+ggpubr  | 0.6.0  | ggrepel (>= 0.9.2), grid, ggsci, stats, utils, tidyr (>=1.3.0), purrr, dplyr (>= 0.7.1), cowplot (>= 1.1.1), ggsignif, scales, gridExtra, glue, polynom, rlang (>= 0.4.6), rstatix (>=0.7.2), tibble, magrittr
+lubridate  | 1.9.4  | generics, timechange (>= 0.3.0)
+forcats  | 1.0.0  | cli (>= 3.4.0), glue, lifecycle, magrittr, rlang (>= 1.0.0), tibble
+stringr  | 1.5.1  | cli, glue (>= 1.6.1), lifecycle (>= 1.0.3), magrittr, rlang (>= 1.0.0), stringi (>= 1.5.3), vctrs (>= 0.4.0)
+dplyr  | 1.1.4  | cli (>= 3.4.0), generics, glue (>= 1.3.2), lifecycle (>=1.0.3), magrittr (>= 1.5), methods, pillar (>= 1.9.0), R6, rlang (>= 1.1.0), tibble (>= 3.2.0), tidyselect (>= 1.2.0), utils, vctrs (>= 0.6.4)
+purrr  | 1.0.4  | cli (>= 3.6.1), lifecycle (>= 1.0.3), magrittr (>= 1.5.0),rlang (>= 1.1.1), vctrs (>= 0.6.3)
+readr  | 2.1.5  | cli (>= 3.2.0), clipr, crayon, hms (>= 0.4.1), lifecycle (>=0.2.0), methods, R6, rlang, tibble, utils, vroom (>= 1.6.0)
+tidyr  | 1.3.1  | cli (>= 3.4.1), dplyr (>= 1.0.10), glue, lifecycle (>= 1.0.3),magrittr, purrr (>= 1.0.1), rlang (>= 1.1.1), stringr (>=1.5.0), tibble (>= 2.1.1), tidyselect (>= 1.2.0), utils, vctrs (>= 0.5.2)
+tibble  | 3.3.0  | cli, lifecycle (>= 1.0.0), magrittr, methods, pillar (>=1.8.1), pkgconfig, rlang (>= 1.0.2), utils, vctrs (>= 0.5.0)
+tidyverse  | 2.0.0  | broom (>= 1.0.3), conflicted (>= 1.2.0), cli (>= 3.6.0),dbplyr (>= 2.3.0), dplyr (>= 1.1.0), dtplyr (>= 1.2.2), forcats (>= 1.0.0), ggplot2 (>= 3.4.1), googledrive (>= 2.0.0),googlesheets4 (>= 1.0.1), haven (>= 2.5.1), hms (>= 1.1.2),httr (>= 1.4.4), jsonlite (>= 1.8.4), lubridate (>= 1.9.2), magrittr (>= 2.0.3), modelr (>= 0.1.10), pillar (>= 1.8.1),purrr (>= 1.0.1), ragg (>= 1.2.5), readr (>= 2.1.4), readxl (>=1.4.2), reprex (>= 2.0.2), rlang (>= 1.0.6), rstudioapi (>=0.14), rvest (>= 1.0.3), stringr (>= 1.5.0), tibble (>= 3.1.8),tidyr (>= 1.3.0), xml2 (>= 1.3.3)
+ggplot2  | 3.5.2  | cli, glue, grDevices, grid, gtable (>= 0.1.1), isoband, lifecycle (> 1.0.1), MASS, mgcv, rlang (>= 1.1.0), scales (>=1.3.0), stats, tibble, vctrs (>=0.6.0), withr (>= 2.5.0)
+
+# Functions of qiime2R
+
+read_qza() - Function for reading artifacts (.qza).
+
+qza_to_phyloseq() - Imports multiple artifacts to produce a phyloseq object.
+
+read_q2metadata() - Reads qiime2 metadata file (containing q2-types definition line).
+
+write_q2manifest() - Writes a read manifest file to import data into qiime2.
+
+theme_q2r() - A ggplot2 theme for publication-type figures.
+
+print_provenance() - A function to display provenance information.
+
+is_q2metadata() - A function to check if a file is a qiime2 metadata file.
+
+parse_taxonomy() - A function to parse taxonomy strings and return a table where each column is a taxonomic class.
+
+parse_ordination() - A function to parse the internal ordination format. 
+
+# Nomenclature
+
+The manuscript and code files may utilize different naming conventions for groups and treatments as follows:
+
+**Manuscript Name**  | **Related Script Name(s)**
+------------- | -------------
+Sample Type  | Type
+Microbial Depletion  | Depletion, Dep, or Treatment
+Microbial Density  | Concentration, Con, PW_Percentage, or Percentage
+Pond Source | Pond, or Pond_Treatment
+
+# Data Descriptions
+
+## Sample Type Subset
+
+Tadpole gut, skin, and inhabited day 6 tank water samples to help visualize whether the three sample types cluster distinctly.
+
+## Water Subset
+
+Day 0 Uninhabited ("C" Control) Tanks vs Day 6 Inhabited Tanks PC2/PC3
+
+## Gut Subset
+
+## Skin Subset
+
+# Plots {.tabset}
+
+## Sample Type
+
+```{r All PC1/PC2}
+metadata1<-read_q2metadata("Tadpole_Metadata_SampleType_Q2.txt")
+braycurtis1<-read_qza("/core-metrics-results-decontam-d500-sampletype/bray_curtis_pcoa_results.qza")
+jaccard1<-read_qza("/core-metrics-results-decontam-d500-sampletype/jaccard_pcoa_results.qza")
+
+
+cols <- c("#44AA99","#AA4499","#332288")
+braycurtis1$data$Vectors %>%
+  select(SampleID, PC1, PC2) %>%
+  left_join(metadata1) %>%
+  ggplot() +
+  geom_point(aes(x=PC1, y=PC2, color=`Type`, fill=`Type`),alpha=0.8)+
+  theme_q2r()+ 
+  xlab("PC1 (16.80%)")+
+  ylab("PC2 (13.23%)")+
+  scale_color_manual(
+  values = cols,
+  aesthetics = c("fill", "color"),
+  name=NULL,
+  )+
+  guides(color=guide_legend(override.aes=list(size=3)))+
+  theme(text=element_text(size=14), axis.text.x = element_text(size=11), axis.text.y = element_text(size=11), axis.title=element_text(size=12))
+
+jaccard1$data$Vectors %>%
+  select(SampleID, PC1, PC2) %>%
+  left_join(metadata1) %>%
+  ggplot() +
+  geom_point(aes(x=PC1, y=PC2, color=`Type`, fill=`Type`),alpha=0.8)+
+  theme_q2r()+ 
+  xlab("PC1 (10.30%)")+
+  ylab("PC2 (7.34%)")+
+  scale_color_manual(
+  values = cols,
+  aesthetics = c("fill", "color"),
+  name=NULL,
+  )+
+
+  guides(color=guide_legend(override.aes=list(size=3)))+
+  theme(text=element_text(size=14), axis.text.x = element_text(size=11), axis.text.y = element_text(size=11), axis.title=element_text(size=12))
+```
+
+## Water Samples
+
+### D0 Uninhabited Tanks vs D6 Inhabited Tanks PC2/PC3
+
+```{r Water D0-D6 PC2/PC3}
+metadata7<-read_q2metadata("/core-metrics-results-water/Tadpole_Metadata_Water_Qiime2R.txt")
+braycurtis7<-read_qza("/core-metrics-results-water/bray_curtis_pcoa_results.qza")
+jaccard7<-read_qza("/core-metrics-results-water/jaccard_pcoa_results.qza")
+
+#### BRAY CURTIS
+
+cols <- c("#000000","#E69F00","#009E73")
+fills <- c("#000000","#FFFFFF","#E69F00","#009E73")
+b2<-braycurtis7$data$Vectors %>%
+  select(SampleID, PC2, PC3) %>%
+  left_join(metadata7)
+
+b2a<-filter(b2,Keep == "Y") %>%
+  ggplot() +
+  geom_point(aes(x=PC2, y=PC3, color=`Pond`, fill=`Fill`, shape=`Treatment`, size=`PW Percentage`),alpha=0.6)+
+  theme_q2r()+ 
+  xlab("PC2 (9.930%)")+
+  ylab("PC3 (5.765%)")+
+  scale_color_manual(
+  values = cols,
+  aesthetics = c("color"),
+  name="Source",
+  )+
+  scale_fill_manual(
+    values = fills,
+    aesthetics = c("fill"),
+    name = "Control",
+    label=c("Yes","No","","")
+  )+
+  scale_size_manual(breaks=c(0,1,25,50,75,100),
+                    labels=c("0","1","25","50","75","100"),
+                    values=c(0.5,1,2.5,3.5,4.5,5.5))+
+  guides(color=guide_legend(override.aes=list(color=c("#000000","#E69F00","#009E73"), size=3)))+
+  scale_shape_manual(values=c(22,24,21,13), name="Treatment")+
+  guides(shape=guide_legend(override.aes=list(size=3)))+
+  theme(text=element_text(size=12), axis.text.x = element_text(size=11), axis.text.y = element_text(size=11), axis.title=element_text(size=12))
+b2a
+
+#### JACCARD
+
+cols <- c("#000000","#E69F00","#009E73")
+j2<-jaccard7$data$Vectors %>%
+  select(SampleID, PC2, PC3) %>%
+  left_join(metadata7)
+
+j2a<-filter(j2,Keep == "Y") %>%
+  ggplot() +
+  geom_point(aes(x=PC2, y=PC3, color=`Pond`, fill=`Fill`, shape=`Treatment`, size=`PW Percentage`),alpha=0.6)+
+  theme_q2r()+ 
+  xlab("PC2 (6.712%)")+
+  ylab("PC3 (4.083%)")+
+  scale_color_manual(
+  values = cols,
+  aesthetics = c("color"),
+  name="Source",
+  )+
+  scale_fill_manual(
+    values = fills,
+    aesthetics = c("fill"),
+    name = "Control",
+    label=c("Yes","No","","")
+  )+
+  scale_size_manual(breaks=c(0,1,25,50,75,100),
+                    labels=c("0","1","25","50","75","100"),
+                    values=c(0.5,1,2.5,3.5,4.5,5.5))+
+  guides(color=guide_legend(override.aes=list(color=c("#000000","#E69F00","#009E73"), size=3)))+
+  scale_shape_manual(values=c(22,24,21), name="Treatment")+  guides(shape=guide_legend(override.aes=list(size=3)))+
+  theme(text=element_text(size=12), axis.text.x = element_text(size=11), axis.text.y = element_text(size=11), axis.title=element_text(size=12))
+j2a
+
+a<-"1"
+b<-"2"
+c<-"3"
+d<-"4"
+e<-"5"
+  
+figure<-ggarrange(j2a, a, b2a, b, labels = c("","","",""), ncol=2, nrow=2,
+          common.legend = TRUE, legend = "right")
+figure
+ggexport(figure, width=10, height=6, filename="Water_D0_D6_2.pdf", res=1200)
+```
+
+## Gut Samples {.tabset}
+
+### PC1/PC2
+
+```{r gut PC1/PC2}
+metadata3<-read_q2metadata("/core-metrics-results-gut/Tadpole_Metadata_Gut_Qiime2R.txt")
+braycurtis3<-read_qza("/core-metrics-results-gut/bray_curtis_pcoa_results.qza")
+jaccard3<-read_qza("/core-metrics-results-gut/jaccard_pcoa_results.qza")
+
+#### BRAY CURTIS
+
+cols <- c("#000000","#E69F00","#009E73")
+b1<-braycurtis3$data$Vectors %>%
+  select(SampleID, PC1, PC2) %>%
+  left_join(metadata3) %>%
+  ggplot() +
+  geom_point(aes(x=PC1, y=PC2, color=`Pond`, fill=`Pond`, shape=`Treatment`, size=`PW_Percentage`),alpha=0.6)+
+  theme_q2r()+ 
+  xlab("PC1 (32.92%)")+
+  ylab("PC2 (12.66%)")+
+  scale_color_manual(
+  values = cols,
+  aesthetics = c("fill", "color"),
+  name="Source",
+  )+
+  scale_size_manual(breaks=c(0,1,25,50,100),
+                    labels=c("0","1","25","50","100"),
+                    values=c(0.5,1,2.5,3.5,5.5))+
+  guides(color=guide_legend(override.aes=list(color=c("#000000","#E69F00","#009E73"), size=3)))+
+  scale_shape_manual(values=c(0,2,21), name="Treatment")+
+  guides(shape=guide_legend(override.aes=list(size=3)))+
+  theme(text=element_text(size=12), axis.text.x = element_text(size=11), axis.text.y = element_text(size=11), axis.title=element_text(size=12))
+b1
+
+#### JACCARD
+
+cols <- c("#000000","#E69F00","#009E73")
+j1<-jaccard3$data$Vectors %>%
+  select(SampleID, PC1, PC2) %>%
+  left_join(metadata3) %>%
+  ggplot() +
+  geom_point(aes(x=PC1, y=PC2, color=`Pond`, fill=`Pond`, shape=`Treatment`, size=`PW_Percentage`),alpha=0.6)+
+  theme_q2r()+ 
+  xlab("PC1 (22.10%)")+
+  ylab("PC2 (9.365%)")+
+  scale_color_manual(
+  values = cols,
+  aesthetics = c("fill", "color"),
+  name="Source",
+  )+
+  scale_size_manual(breaks=c(0,1,25,50,100),
+                    labels=c("0","1","25","50","100"),
+                    values=c(0.5,1,2.5,3.5,5.5))+
+  guides(color=guide_legend(override.aes=list(color=c("#000000","#E69F00","#009E73"), size=3)))+
+  scale_shape_manual(values=c(0,2,21), name="Treatment")+
+  guides(shape=guide_legend(override.aes=list(size=3)))+
+  theme(text=element_text(size=12), axis.text.x = element_text(size=11), axis.text.y = element_text(size=11), axis.title=element_text(size=12))
+j1
+```
+
+### PC2/PC3
+
+```{r gut PC2/PC3}
+metadata4<-read_q2metadata("/core-metrics-results-gut/Tadpole_Metadata_Gut_Qiime2R.txt")
+braycurtis4<-read_qza("/core-metrics-results-gut/bray_curtis_pcoa_results.qza")
+jaccard4<-read_qza("/core-metrics-results-gut/jaccard_pcoa_results.qza")
+
+#### BRAY CURTIS
+
+cols <- c("#000000","#E69F00","#009E73")
+b2<-braycurtis4$data$Vectors %>%
+  select(SampleID, PC2, PC3) %>%
+  left_join(metadata4) %>%
+  ggplot() +
+  geom_point(aes(x=PC2, y=PC3, color=`Pond`, fill=`Pond`, shape=`Treatment`, size=`PW_Percentage`),alpha=0.6)+
+  theme_q2r()+ 
+  xlab("PC2 (12.66%)")+
+  ylab("PC3 (6.547%)")+
+  scale_color_manual(
+  values = cols,
+  aesthetics = c("fill", "color"),
+  name="Source",
+  )+
+  scale_size_manual(breaks=c(0,1,25,50,100),
+                    labels=c("0","1","25","50","100"),
+                    values=c(0.5,1,2.5,3.5,5.5))+
+  guides(color=guide_legend(override.aes=list(color=c("#000000","#E69F00","#009E73"), size=3)))+
+  scale_shape_manual(values=c(0,2,21), name="Treatment")+
+  guides(shape=guide_legend(override.aes=list(size=3)))+
+  theme(text=element_text(size=12), axis.text.x = element_text(size=11), axis.text.y = element_text(size=11), axis.title=element_text(size=12))
+b2
+
+#### JACCARD
+
+j2<-jaccard4$data$Vectors %>%
+  select(SampleID, PC2, PC3) %>%
+  left_join(metadata4) %>%
+  ggplot() +
+  geom_point(aes(x=PC2, y=PC3, color=`Pond`, fill=`Pond`, shape=`Treatment`, size=`PW_Percentage`),alpha=0.6)+
+  theme_q2r()+ 
+  xlab("PC2 (9.365%)")+
+  ylab("PC3 (3.556%)")+
+  scale_color_manual(
+  values = cols,
+  aesthetics = c("fill", "color"),
+  name="Source",
+  )+
+  scale_size_manual(breaks=c(0,1,25,50,100),
+                    labels=c("0","1","25","50","100"),
+                    values=c(0.5,1,2.5,3.5,5.5))+
+  guides(color=guide_legend(override.aes=list(color=c("#000000","#E69F00","#009E73"), size=3)))+
+  scale_shape_manual(values=c(0,2,21), name="Treatment")+
+  guides(shape=guide_legend(override.aes=list(size=3)))+
+  theme(text=element_text(size=12), axis.text.x = element_text(size=11), axis.text.y = element_text(size=11), axis.title=element_text(size=12))
+
+j2
+
+figure<-ggarrange(j1, j2, b1, b2, labels = c("A","B","C","D"), ncol=2, nrow=2,
+          common.legend = TRUE, legend = "right")
+figurea<-annotate_figure(figure,
+                left = text_grob("Bray Curtis                                       Jaccard      ", face = "bold", y = 0.54, rot = 90, size = 14))
+figurea
+ggexport(figurea, width=9, height=6, filename="Gut.pdf", res=300)
+```
+
+## Skin Samples {.tabset}
+
+### PC1/PC2
+
+```{r Skin PC1/PC2}
+metadata5<-read_q2metadata("/core-metrics-results-skin/Tadpole_Metadata_Skin_Qiime2R.txt")
+braycurtis5<-read_qza("/core-metrics-results-skin/bray_curtis_pcoa_results.qza")
+jaccard5<-read_qza("/core-metrics-results-skin/jaccard_pcoa_results.qza")
+
+##### BRAY CURTIS
+
+cols <- c("#000000","#E69F00","#009E73")
+b1<-braycurtis5$data$Vectors %>%
+  select(SampleID, PC1, PC2) %>%
+  left_join(metadata5) %>%
+  ggplot() +
+  geom_point(aes(x=PC1, y=PC2, color=`Pond`, fill=`Pond`, shape=`Treatment`, size=`PW Percentage`),alpha=0.6)+
+  theme_q2r()+ 
+  xlab("PC1 (27.60%)")+
+  ylab("PC2 (12.17%)")+
+  scale_color_manual(
+  values = cols,
+  aesthetics = c("fill", "color"),
+  name="Source",
+  )+
+  scale_size_manual(breaks=c(0,1,25,50,100),
+                    labels=c("0","1","25","50","100"),
+                    values=c(0.5,1,2.5,3.5,5.5))+
+  guides(color=guide_legend(override.aes=list(color=c("#000000","#E69F00","#009E73"), size=3)))+
+  scale_shape_manual(values=c(0,2,21), name="Treatment")+
+  guides(shape=guide_legend(override.aes=list(size=3)))+
+  theme(text=element_text(size=12), axis.text.x = element_text(size=11), axis.text.y = element_text(size=11), axis.title=element_text(size=12))
+
+b1
+
+##### JACCARD
+
+j1<-jaccard5$data$Vectors %>%
+  select(SampleID, PC1, PC2) %>%
+  left_join(metadata5) %>%
+  ggplot() +
+  geom_point(aes(x=PC1, y=PC2, color=`Pond`, fill=`Pond`, shape=`Treatment`, size=`PW Percentage`),alpha=0.6)+
+  theme_q2r()+ 
+  xlab("PC1 (9.031%)")+
+  ylab("PC2 (4.983%)")+
+  scale_color_manual(
+  values = cols,
+  aesthetics = c("fill", "color"),
+  name="Source",
+  )+
+  scale_size_manual(breaks=c(0,1,25,50,100),
+                    labels=c("0","1","25","50","100"),
+                    values=c(0.5,1,2.5,3.5,5.5))+
+  guides(color=guide_legend(override.aes=list(color=c("#000000","#E69F00","#009E73"), size=3)))+
+  scale_shape_manual(values=c(0,2,21), name="Treatment")+
+  guides(shape=guide_legend(override.aes=list(size=3)))+
+  theme(text=element_text(size=12), axis.text.x = element_text(size=11), axis.text.y = element_text(size=11), axis.title=element_text(size=12))
+
+j1
+```
+
+### PC2/PC3
+
+```{r Skin PC2/PC3}
+metadata6<-read_q2metadata("/core-metrics-results-skin/Tadpole_Metadata_Skin_Qiime2R.txt")
+braycurtis6<-read_qza("/core-metrics-results-skin/bray_curtis_pcoa_results.qza")
+jaccard6<-read_qza("/core-metrics-results-skin/jaccard_pcoa_results.qza")
+
+#### BRAY CURTIS
+
+cols <- c("#000000","#E69F00","#009E73")
+b2<-braycurtis6$data$Vectors %>%
+  select(SampleID, PC2, PC3) %>%
+  left_join(metadata6) %>%
+  ggplot() +
+  geom_point(aes(x=PC2, y=PC3, color=`Pond`, fill=`Pond`, shape=`Treatment`, size=`PW Percentage`),alpha=0.6)+
+  theme_q2r()+ 
+  xlab("PC2 (12.17%)")+
+  ylab("PC3 (6.660%)")+
+  scale_color_manual(
+  values = cols,
+  aesthetics = c("fill", "color"),
+  name="Source",
+  )+
+  scale_size_manual(breaks=c(0,1,25,50,100),
+                    labels=c("0","1","25","50","100"),
+                    values=c(0.5,1,2.5,3.5,5.5))+
+  guides(color=guide_legend(override.aes=list(color=c("#000000","#E69F00","#009E73"), size=3)))+
+  scale_shape_manual(values=c(0,2,21), name="Treatment")+
+  guides(shape=guide_legend(override.aes=list(size=3)))+
+  theme(text=element_text(size=12), axis.text.x = element_text(size=11), axis.text.y = element_text(size=11), axis.title=element_text(size=12))
+b2
+
+#### JACCARD
+
+cols <- c("#000000","#E69F00","#009E73")
+j2<-jaccard6$data$Vectors %>%
+  select(SampleID, PC2, PC3) %>%
+  left_join(metadata6) %>%
+  ggplot() +
+  geom_point(aes(x=PC2, y=PC3, color=`Pond`, fill=`Pond`, shape=`Treatment`, size=`PW Percentage`),alpha=0.6)+
+  theme_q2r()+ 
+  xlab("PC2 (4.983%)")+
+  ylab("PC3 (3.327%)")+
+  scale_color_manual(
+  values = cols,
+  aesthetics = c("fill", "color"),
+  name="Source",
+  )+
+  scale_size_manual(breaks=c(0,1,25,50,100),
+                    labels=c("0","1","25","50","100"),
+                    values=c(0.5,1,2.5,3.5,5.5))+
+  guides(color=guide_legend(override.aes=list(color=c("#000000","#E69F00","#009E73"), size=3)))+
+  scale_shape_manual(values=c(0,2,21), name="Treatment")+
+  guides(shape=guide_legend(override.aes=list(size=3)))+
+  theme(text=element_text(size=12), axis.text.x = element_text(size=11), axis.text.y = element_text(size=11), axis.title=element_text(size=12))
+j2
+
+figure<-ggarrange(j1, j2, b1, b2, labels = c("A","B","C","D"), ncol=2, nrow=2,
+          common.legend = TRUE, legend = "right")
+figurea<-annotate_figure(figure,
+                left = text_grob("Bray Curtis                                       Jaccard      ", face = "bold", y = 0.54, rot = 90, size = 14))
+figurea
+ggexport(figurea, width=9, height=6, filename="Skin.pdf", res=300)
+```

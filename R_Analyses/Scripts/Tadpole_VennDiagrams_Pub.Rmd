@@ -1,0 +1,113 @@
+---
+title: "Tadpole_Taxa_Venn_Diagrams"
+author: "Elizabeth N. Rudzki"
+date: "2023-09-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+if (!requireNamespace("phyloseq", quietly = TRUE)){install.packages("phyloseq")}
+library(phyloseq)
+if (!requireNamespace("ggplot2", quietly = TRUE)){install.packages("ggplot2")}
+library(ggplot2)
+if (!requireNamespace("eulerr", quietly = TRUE)){install.packages("eulerr")}
+library(eulerr)
+if (!requireNamespace("devtools", quietly = TRUE)){install.packages("devtools")}
+library(devtools)
+if (!requireNamespace("qiime2R", quietly = TRUE)){devtools::install_github("jbisanz/qiime2R")} # current version is 0.99.20
+library(qiime2R)
+if (!requireNamespace("devtools", quietly = TRUE)){install.packages("ggpubr")}
+library(ggpubr)
+#install.packages("remotes")
+#remotes::install_github("Russel88/MicEco")
+library(MicEco)
+```
+
+## Qiime2R Functions
+
+read_qza() - Function for reading artifacts (.qza).
+qza_to_phyloseq() - Imports multiple artifacts to produce a phyloseq object.
+read_q2metadata() - Reads qiime2 metadata file (containing q2-types definition line)
+write_q2manifest() - Writes a read manifest file to import data into qiime2
+theme_q2r() - A ggplot2 theme for publication-type figures.
+print_provenance() - A function to display provenance information.
+is_q2metadata() - A function to check if a file is a qiime2 metadata file.
+parse_taxonomy() - A function to parse taxonomy strings and return a table where each column is a taxonomic class.
+parse_ordination() - A function to parse the internal ordination format.
+
+```{r VennDiagrams}
+#How many taxa in common do the three groups have?
+
+phy<-qza_to_phyloseq("/decontam-sans-a-m-c-t-k.qza","rooted-tree.qza","taxonomy.qza","Tadpole_Metadata_All_Q2_NT.txt")
+ if(taxa_are_rows(phy)){
+        ps_melted <- reshape2::melt(otu_table(phy))
+    } else {
+        ps_melted <- reshape2::melt(t(otu_table(phy)))
+    }
+    ps_melted <- merge(ps_melted, sample_data(phy), by.x = "Var2", by.y = "row.names")
+    ps_agg <- aggregate(as.formula(paste("value ~ Var1 +","Type")), data = ps_melted, function(x) (sum(x > 0)/length(x) >= 0) * mean(x))
+    
+        ps_mat <- reshape2::dcast(as.formula(paste("Var1 ~ ","Type")), data = ps_agg, value.var = "value")
+
+#Presence/Absence only
+ps_venn(phy,
+        "Type",
+        fraction = 0,
+        weight = FALSE,
+        relative = FALSE,
+        plot = TRUE,
+        fill = c("#b1e0d8","#e0b1d8","#a092e4"))
+ps_venn
+
+#Overlaps weighted by the abundances of those taxa 
+ps_venn2(phy,
+        "Type",
+        fraction = 0,
+        weight = TRUE,
+        relative = FALSE,
+        plot = TRUE,
+        fill = c("#b1e0d8","#e0b1d8","#a092e4"))
+ps_venn2
+
+#With removing Control tanks (uninhabited tanks). All that is left is the D6 inhabited tank water samples, which 'match' the environment of the tadpoles at the time of their dissection.
+phy2<-qza_to_phyloseq("/decontam-sans-a-m-c-t-k-w.qza","rooted-tree.qza","taxonomy.qza","Tadpole_Metadata_All_Q2_NT.txt")
+
+#Presence/Absence only
+pa_venn<-ps_venn(phy2,
+        "Type",
+        fraction = 0,
+        weight = FALSE,
+        relative = FALSE,
+        plot = TRUE,
+        fill = c("#b1e0d8","#e0b1d8","#a092e4"),
+        quantities = list(type=c("counts","percent"), font = 6, round=2, cex=1.5),
+        labels = list(cex=2))
+ggexport(pa_venn, width = 5, height = 5, filename="pa_venn2.pdf", res=300)
+pa_venn
+
+#Overlaps weighted by the abundances of those taxa 
+ra_venn<-ps_venn(phy2,
+        "Type",
+        fraction = 0,
+        weight = TRUE,
+        relative = FALSE,
+        plot = TRUE,
+        fill = c("#b1e0d8","#e0b1d8","#a092e4"),
+        quantities = list(type=c("counts","percent"), font = 6, round=2, cex=1.2),
+        labels = list(cex=2))
+ggexport(ra_venn, width = 5, height = 5, filename="ra_venn2.pdf", res=300)
+ra_venn
+
+ra_venn2<-ps_venn(phy2,
+        "Type",
+        fraction = 0,
+        weight = TRUE,
+        relative = FALSE,
+        plot = TRUE,
+        fill = c("#b1e0d8","#e0b1d8","#a092e4"),
+        quantities = list(type=c("percent"), font = 6, round=2, cex=1.5),
+        labels = list(cex=2))
+ggexport(ra_venn2, width = 5, height = 5, filename="ra_venn2-2.pdf", res=300)
+ra_venn2
+```

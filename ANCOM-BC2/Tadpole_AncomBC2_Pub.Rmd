@@ -1,0 +1,443 @@
+---
+title: "Tadpole_AncomBC2"
+author: "Elizabeth N. Rudzki"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+To test whether gut bacterial families covaried with tadpole mass, we used ANCOM-BC2 to analyze each pond source separately on unrarefied family-level counts. Tadpole mass was log-transformed and centered on its tank mean, and models included this within-tank mass term with tank as a fixed effect, so that associations reflect differences among tankmates sharing the same treatment; families present in fewer than 25% of samples for a given pond were excluded, p-values were adjusted using the Benjamini-Hochberg procedure (α = 0.05), and families were considered significant only if they also passed ANCOM-BC2’s sensitivity analysis for pseudo-count choice.
+
+# Setup
+
+```{r setup, include = TRUE, echo = FALSE}
+set.seed(123456)
+
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(TreeSummarizedExperiment)
+library(ANCOMBC)
+library(here)
+library(kableExtra)
+library(knitr)
+
+sessionInfo()
+```
+
+***
+
+# Data Input
+
+```{r data}
+here::i_am("Tadpole_AncomBC2.Rmd")
+counts <- read.csv(here::here("table-family.csv"), row.names = 1, check.names = FALSE)
+  
+# quick checks
+dim(counts)              # rows = families, cols = samples
+head(colnames(counts))   # should look like sample-ids
+sapply(counts, is.numeric) %>% all()   # should be TRUE
+
+meta_all <- read_tsv(here::here("Tadpole_Metadata_AncomBC2.txt"), na = c("", "NA", "N/A")) %>%
+  mutate(tank_id = `Tank_ID`,
+         mass_mg = `Tadpole Weight (g)` * 1000,
+         log_mass = log(mass_mg)) %>%
+  mutate(tank_id = factor(tank_id)) %>%
+  filter(!is.na(log_mass), `sample-id` %in% colnames(counts)) %>%
+  group_by(tank_id) %>%
+  mutate(mass_within = log_mass - mean(log_mass)) %>%
+  ungroup() %>%
+  as.data.frame() %>%
+  column_to_rownames("sample-id")
+
+meta_PLE <- meta_all %>%
+  filter(`Pond` == "PLE") %>%
+  mutate(tank_id = droplevels(tank_id))
+
+meta_PM <- meta_all %>%
+  filter(`Pond` == "PM") %>%
+  mutate(tank_id = droplevels(tank_id))
+
+# Keep only samples present in the metadata file, as this metadata file already had samples that were later excluded due to sequencing depth removed, and the counts file does not)
+counts_PLE <- counts[, rownames(meta_PLE)]
+counts_PM <- counts[, rownames(meta_PM)]
+
+tse_PLE <- TreeSummarizedExperiment(
+  assays  = list(counts = as.matrix(counts_PLE)),
+  colData = DataFrame(meta_PLE)
+)
+
+tse_PM <- TreeSummarizedExperiment(
+  assays  = list(counts = as.matrix(counts_PM)),
+  colData = DataFrame(meta_PM)
+)
+```
+
+***
+***
+
+# Data Checks & Descriptions
+
+## Check sampling depth
+
+This should be 0 for both, as we filter counts by the samples present in the metadata file, and this metadata files already only includes those samples that made it past the rarefaction depth of 5700:
+```{r data_check_1}
+sum(colSums(counts_PLE) < 5700)
+sum(colSums(counts_PM) < 5700)
+```
+
+***
+
+## Prevalence thresholding
+
+These tables show which families will be dropped due to the prevalence threshold, and therefore not modeled.
+
+```{r prevalence-tables}
+threshold = 0.25
+
+prev_check <- function(counts_mat, cut = threshold){
+  prev <- rowMeans(counts_mat > 0)
+  tibble(family = names(prev), prevalence = prev) %>%
+    mutate(kept = prevalence >= cut) %>%
+    arrange(desc(prevalence))
+}
+
+prev_PLE <- prev_check(counts_PLE)
+prev_PM <- prev_check(counts_PM)
+
+# Table 1: summary of the prevalence filter per pond
+prev_summary <- bind_rows(PLE = prev_PLE, PM = prev_PM, .id = "Pond") %>%
+  group_by(Pond) %>%
+  summarise(`Total families` = n(),
+            Kept = sum(kept),
+            Dropped = sum(!kept))
+
+# Table 2: retained families with prevalence in both ponds
+prev_both <- full_join(
+  prev_PLE %>% select(family, PLE = prevalence),
+  prev_PM  %>% select(family, PM = prevalence),
+  by = "family"
+) %>%
+  filter(PLE >= threshold | PM >= threshold) %>%
+  mutate(`Kept in` = case_when(
+    PLE >= threshold & PM >= threshold ~ "Both",
+    PLE >= threshold              ~ "PLE only",
+    TRUE                     ~ "PM only"
+  )) %>%
+  arrange(`Kept in`, desc(pmax(PLE, PM))) %>%
+  mutate(across(c(PLE, PM), ~ scales::percent(.x, accuracy = 1))) %>%
+  mutate(family = str_remove(family, ".*f__"))
+```
+
+***
+
+### Summary of the taxa kept with prevalence per pond
+
+```{r prev-filt-1, echo = FALSE}
+# Table 1: summary of the prevalence filter per pond
+kable(prev_summary,
+      caption = "Number of bacterial families retained in each pond by a 25% prevalence filter.")
+
+write.csv(prev_summary, file = here::here("prev_threshold_summary.csv"), row.names = FALSE)
+```
+
+***
+
+### Retained families with prevalence in both ponds
+
+```{r prev-filt-2, echo = FALSE}
+write.csv(prev_both, file = here::here("retained_families_prev_threshold.csv"), row.names = FALSE)
+
+# Table 2: retained families with prevalence in both ponds
+prev_table_output <- prev_both %>%
+  kable(
+    col.names = c("Family", "Prevalence in PLE", "Prevalence in PM", "Kept in"),
+    align = c("l", "r", "r", "l"),
+    caption = "Prevalence (percent of samples with nonzero counts) of families retained in at least one pond."
+  ) %>%
+  kableExtra::kable_styling(bootstrap_options = "striped")
+
+if (knitr::is_html_output()) {
+  prev_table_output <- prev_table_output %>% kableExtra::scroll_box(height = "500px")
+}
+
+prev_table_output
+```
+
+***
+
+### Threshold: Families of interest
+
+Here we check to see whether the dominant taxonomic families already focused on in the manuscript, already identified as those taxon with >5% median abundance in any treatment group, pass the prevalence threshold:
+
+```{r prev-thres-foi}
+# Families of interest
+FOI <- c("Isosphaeraceae","Rhizobiaceae","Clostridiaceae","Ruminococcaceae","Lachnospiraceae","Terrimicrobiaceae","Kaistiaceae","Xanthobacteraceae","Aeromonadaceae","Reyranellaceae","Tannerellaceae","Yersiniaceae")
+
+lookup <- function(query, prev_tbl, pond) {
+  # whole name only: at the start of the label, after "__" or ";", and at the end
+  pattern <- regex(paste0("(^|__|;)", str_escape(query), "$"), ignore_case = TRUE)
+  prev_tbl %>%
+    filter(str_detect(family, pattern)) %>%
+    mutate(query = query, pond = pond)
+}
+
+family_check <- map_dfr(FOI, function(q) {
+  bind_rows(lookup(q, prev_PLE, "PLE"),
+            lookup(q, prev_PM, "PM"))
+}) %>%
+  select(query, family, pond, prevalence, kept) %>%
+  pivot_wider(names_from = pond, values_from = c(prevalence, kept))
+
+family_check
+
+write.csv(family_check, file = here::here("foi_threshold_check.csv"), row.names = FALSE)
+
+# Make sure the families in our list of interest matched something, this should be empty if they all did
+setdiff(FOI, family_check$query)
+```
+
+***
+***
+
+# Run AncomBC2
+
+Treatment (pond water concentration) could affect both tadpole mass and the gut microbiome. If we compared tadpoles across tanks, a family might look linked to mass only because both were driven by treatment. Since every tadpole in a tank shares the same treatment, comparing heavier vs. lighter tadpoles within a tank removes treatment from the comparison. The `mass_within` centering does this, and we model `mass_within` with `tank_id` as a fixed effect to absorbs treatment and every other tank-level difference, with no assumptions about how tanks vary.
+
+## PLE Model
+
+```{r models_PLE}
+out_PLE <- ancombc2(
+  data = tse_PLE,
+  assay_name = "counts",
+  fix_formula = "mass_within + tank_id",
+  p_adj_method = "BH",
+  prv_cut = threshold,          # drop families present in <10% of samples
+  lib_cut = 5700,          # drop samples with very low depth, same as rarefaction depth set for gut samples; should drop none as checked above
+  pseudo_sens = TRUE,      # sensitivity to pseudo-count choice
+  alpha = 0.05,
+  n_cl = 2
+)
+
+res_PLE <- out_PLE$res %>%
+  select(taxon, ends_with("mass_within")) %>%
+  arrange(q_mass_within)
+
+# diff_mass_within is TRUE when q_mass_within is below the alpha of 0.05, so this keeps families that are significant and robust to the pseudo-count choice
+res_PLE_sig <- res_PLE %>%
+  filter(diff_mass_within, passed_ss_mass_within)
+
+saveRDS(out_PLE, file = "ancombc2_results_PLE.rds")
+```
+
+***
+
+## PM Model
+
+```{r models_PM}
+out_PM <- ancombc2(
+  data = tse_PM,
+  assay_name = "counts",
+  fix_formula = "mass_within + tank_id",
+  p_adj_method = "BH",
+  prv_cut = threshold,          # drop families present in <10% of samples
+  lib_cut = 5700,          # drop samples with very low depth, same as rarefaction depth set for gut samples; should drop none as checked above
+  pseudo_sens = TRUE,      # sensitivity to pseudo-count choice
+  alpha = 0.05,
+  n_cl = 2
+)
+
+res_PM <- out_PM$res %>%
+  select(taxon, ends_with("mass_within")) %>%
+  arrange(q_mass_within)
+
+res_PM_sig <- res_PM %>%
+  filter(diff_mass_within, passed_ss_mass_within)
+
+saveRDS(out_PM, file = "ancombc2_results_pm.rds")
+```
+
+***
+***
+
+# Results
+
+```{r ancombc2-tables-setup}
+# Format p and q values for display
+fmt_p <- function(x) ifelse(is.na(x), "n/a",
+                            ifelse(x < 0.001, "< 0.001", sprintf("%.3f", x)))
+
+# Combine both ponds and add derived columns
+res_all <- bind_rows(PLE = res_PLE, PM = res_PM, .id = "Pond") %>%
+  mutate(
+    testable = !is.na(p_mass_within),
+    passed_ss_mass_within = coalesce(passed_ss_mass_within, FALSE),
+    diff_mass_within      = coalesce(diff_mass_within, FALSE),
+    pct_change = (1.1^lfc_mass_within - 1) * 100,   # % change for a tadpole 10% heavier than tankmates
+    Status = case_when(
+      !testable                                 ~ "Not testable",
+      diff_mass_within & passed_ss_mass_within ~ "Significant",
+      diff_mass_within                          ~ "Significant, not robust to pseudo-count",
+      TRUE                                      ~ "Not significant"
+    ),
+    `LFC (SE)`        = if_else(testable,
+                                sprintf("%.2f (%.2f)", lfc_mass_within, se_mass_within),
+                                "n/a"),
+    `% change`        = if_else(testable, sprintf("%+.1f%%", pct_change), "n/a"),
+    p                 = fmt_p(p_mass_within),
+    `q (BH-adjusted)` = fmt_p(q_mass_within)
+  ) %>%
+  arrange(Pond, !testable, q_mass_within)
+```
+
+***
+
+## Any significant and robust families, with results from the other pond
+
+Gut bacterial families significantly associated with within-tank tadpole mass (ANCOM-BC2, Benjamini-Hochberg adjusted q < 0.05, robust to pseudo-count choice), with results for the same family in the other pond. LFC is the bias-corrected log fold change per unit log mass; % change is the predicted difference in abundance for a tadpole 10% heavier than its tank average; p is the uncorrected p-value; q is the Benjamini-Hochberg adjusted p-value. Families not retained in the other pond were below the 25% prevalence filter there or not detected.
+
+```{r table-1, echo = FALSE, results = "asis"}
+# ---------------------------------------------------------------
+# Table 1: significant and robust families, with results from the other pond
+# ---------------------------------------------------------------
+
+# Each family's results, labeled with the pond they will be joined to
+other_pond <- res_all %>%
+  transmute(
+    taxon,
+    Pond           = if_else(Pond == "PLE", "PM", "PLE"),
+    other_retained = "Yes",
+    other_lfc      = `LFC (SE)`,
+    other_pct      = `% change`,
+    other_p        = p,
+    other_q        = `q (BH-adjusted)`,
+    other_status   = Status
+  )
+
+sig_tbl <- res_all %>%
+  filter(Status == "Significant") %>%
+  select(Pond, taxon, `LFC (SE)`, `% change`, p, `q (BH-adjusted)`) %>%
+  left_join(other_pond, by = c("taxon", "Pond")) %>%
+  mutate(
+    other_retained = coalesce(other_retained, "No"),
+    across(c(other_lfc, other_pct, other_p, other_q), ~ coalesce(.x, "n/a")),
+    other_status   = coalesce(other_status, "Not retained by prevalence filter")
+  )
+
+if (nrow(sig_tbl) == 0) {
+  cat("No families were significantly associated with within-tank tadpole mass in either pond.\n\n")
+} else {
+  sig_tbl %>%
+    kable(col.names = c("Pond", "Family",
+                        "LFC (SE)", "% change", "p", "q (BH)",
+                        "Retained", "LFC (SE)", "% change", "p", "q (BH)", "Status"),
+          align = c("l", "l", "r", "r", "r", "r", "l", "r", "r", "r", "r", "l"),
+          booktabs = TRUE) %>%
+    add_header_above(c(" " = 2, "Significant pond" = 4, "Other pond" = 6)) %>%
+    kable_styling(bootstrap_options = c("striped", "condensed"),
+                  latex_options = c("scale_down", "hold_position"),
+                  full_width = TRUE) %>%
+    column_spec(1:2, bold = TRUE) %>%
+    print()
+}
+
+write.csv(sig_tbl, file = here::here("ancombc2_sig_results.csv"), row.names = FALSE)
+```
+
+***
+
+## Results: Families of interest
+
+Here we pull the results for the dominant taxonomic families already focused on in the manuscript, already identified as those taxon with >5% median abundance in any treatment group:
+
+- Isosphaeraceae
+- Rhizobiaceae
+- Clostridiaceae
+- Ruminococcaceae
+- Lachnospiraceae
+- Terrimicrobiaceae
+- Kaistiaceae
+- Xanthobacteraceae
+- Aeromonadaceae
+- Reyranellaceae
+- Tannerellaceae
+- Yersiniaceae
+
+```{r ancombc2-interest-table, echo = FALSE, results = "asis"}
+# Exact-match each family of interest against the tested families
+interest_tbl <- map_dfr(FOI, function(q) {
+  pattern <- regex(paste0("(^|__|;)", str_escape(q), "$"), ignore_case = TRUE)
+  res_all %>%
+    filter(str_detect(taxon, pattern)) %>%
+    mutate(Family = q)
+}) %>%
+  arrange(Family, Pond) %>%
+  select(Family, Pond, `LFC (SE)`, `% change`, p, `q (BH-adjusted)`, Status)
+
+if (nrow(interest_tbl) == 0) {
+  cat("None of the families of interest passed the prevalence filter in either pond.\n\n")
+} else {
+  interest_tbl %>%
+    kable(col.names = c("Family", "Pond", "LFC (SE)", "% change", "p", "q (BH)", "Status"),
+          align = c("l", "l", "r", "r", "r", "r", "l"),
+          booktabs = TRUE,
+          caption = "ANCOM-BC2 results for families of interest retained after the 25% prevalence filter. q values are Benjamini-Hochberg adjusted across all families tested in each pond, not only those shown here.") %>%
+    kable_styling(bootstrap_options = c("striped", "condensed"),
+                  latex_options = "hold_position",
+                  full_width = FALSE) %>%
+    print()
+}
+
+# Families of interest not tested in each pond
+for (pond in c("PLE", "PM")) {
+  missing <- setdiff(FOI, interest_tbl$Family[interest_tbl$Pond == pond])
+  if (length(missing) > 0) {
+    cat("\nNot retained by the prevalence filter in ", pond, ": ",
+        paste(missing, collapse = ", "), ".\n", sep = "")
+  }
+}
+
+write.csv(interest_tbl, file = here::here("ancombc2_foi.csv"), row.names = FALSE)
+```
+
+***
+
+## Families retained by the prevalence filter that could not be tested
+
+```{r untestable-check, echo = FALSE, results = "asis"}
+untestable_check <- function(res, counts_mat, meta, pond) {
+  na_taxa <- res %>% filter(is.na(p_mass_within)) %>% pull(taxon)
+  if (length(na_taxa) == 0) return(NULL)
+
+  present <- counts_mat[na_taxa, , drop = FALSE] > 0
+  sample_tanks <- meta[colnames(counts_mat), "tank_id"]
+
+  tibble(
+    Pond               = pond,
+    Family             = na_taxa,
+    `Samples present`  = rowSums(present),
+    `Total samples`    = ncol(counts_mat),
+    Prevalence         = scales::percent(rowMeans(present), accuracy = 1),
+    `Tanks present`    = apply(present, 1, function(x) n_distinct(sample_tanks[x])),
+    `Total tanks`      = n_distinct(sample_tanks),
+    `Model parameters` = n_distinct(sample_tanks) + 1   # tanks plus the mass term
+  )
+}
+
+untestable_tbl <- bind_rows(
+  untestable_check(res_PLE, counts_PLE, meta_PLE, "PLE"),
+  untestable_check(res_PM,  counts_PM,  meta_PM,  "PM")
+)
+
+if (nrow(untestable_tbl) == 0) {
+  cat("All families retained by the prevalence filter received a valid test in both ponds.\n\n")
+} else {
+  untestable_tbl %>%
+    arrange(Pond, `Samples present`) %>%
+    kable(align = c("l", "l", rep("r", 6)),
+          booktabs = TRUE,
+          caption = "Families retained by the 25% prevalence filter that could not be tested. ANCOM-BC2 fits each family's model only on samples where it is present, so families present in no more samples than there are model parameters have no remaining degrees of freedom.") %>%
+    kable_styling(bootstrap_options = c("striped", "condensed"),
+                  latex_options = "hold_position",
+                  full_width = FALSE) %>%
+    print()
+}
+```

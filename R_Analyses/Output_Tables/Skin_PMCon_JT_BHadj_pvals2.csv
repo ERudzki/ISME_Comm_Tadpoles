@@ -1,0 +1,9 @@
+"Taxonomic_Family","JT_statistic","P_value","BH_adj_pval"
+"Aeromonadaceae",458,8e-04,0.00213333333333333
+"Clostridiaceae",290.5,0.632,0.632
+"Comamonadaceae",494,4e-04,0.0016
+"Puniceicoccaceae",149.5,4e-04,0.0016
+"Remainder",354,0.3192,0.3648
+"Reyranellaceae",260,0.2292,0.3056
+"Xanthobacteraceae",249.5,0.1452,0.23232
+"d__Bacteria;__;__;__;__",397.5,0.046,0.092

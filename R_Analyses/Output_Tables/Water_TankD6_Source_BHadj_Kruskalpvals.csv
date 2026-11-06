@@ -1,0 +1,16 @@
+"Comparison","Taxon","Pval","BH_adj_pval"
+"Overall","Burk",0.0098,0.049
+"Overall","Caulo",0.4076,0.5095
+"Overall","Chito",0.9272,0.9272
+"Overall","Comam",0.761,0.878076923076923
+"Overall","Fimbrii",0.0035,0.04875
+"Overall","Flavo",0.0183,0.068625
+"Overall","Legion",0.1025,0.15675
+"Overall","Oxalo",0.1288,0.175636363636364
+"Overall","Reyran",0.8668,0.9272
+"Overall","Simka",0.0521,0.0976875
+"Overall","Sphingo",0.1045,0.15675
+"Overall","Spiro",0.0474,0.0976875
+"Overall","Xantho",0.0513,0.0976875
+"Overall","Unclassified",0.0065,0.04875
+"Overall","Remainder",0.0381,0.0976875

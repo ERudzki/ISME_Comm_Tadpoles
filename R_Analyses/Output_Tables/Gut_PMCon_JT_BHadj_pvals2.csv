@@ -1,0 +1,14 @@
+"Taxonomic_Family","JT_statistic","P_value","BH_adj_pval"
+"Aeromonadaceae",270,0.0136,0.0160727272727273
+"Clostridiaceae",268,0.0136,0.0160727272727273
+"Isosphaeraceae",602,4e-04,0.000742857142857143
+"Kaistiaceae",376.5,0.6912,0.6912
+"Lachnospiraceae",648,4e-04,0.000742857142857143
+"Remainder",523,0.0132,0.0160727272727273
+"Reyranellaceae",83,4e-04,0.000742857142857143
+"Rhizobiaceae",102,4e-04,0.000742857142857143
+"Ruminococcaceae",530,8e-04,0.0013
+"Tannerellaceae",600.5,4e-04,0.000742857142857143
+"Terrimicrobiaceae",374,0.6568,0.6912
+"Xanthobacteraceae",174,4e-04,0.000742857142857143
+"Yersiniaceae",591,4e-04,0.000742857142857143

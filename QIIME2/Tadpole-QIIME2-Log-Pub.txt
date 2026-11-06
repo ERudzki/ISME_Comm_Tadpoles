@@ -1,0 +1,619 @@
+Tadpole Dataset
+Elizabeth N. Rudzki
+QIIME2 terminal commands
+
+
+cd BaseSpace/Tadpoles/All-seq/
+source activate qiime2-2023.5
+
+qiime tools import --type 'SampleData[PairedEndSequencesWithQuality]' --input-path Tadpole_Manifest.csv --output-path paired-end-demux.qza --input-format PairedEndFastqManifestPhred33
+
+qiime demux summarize --i-data paired-end-demux.qza --o-visualization paired-end-demux.qzv
+
+qiime dada2 denoise-paired --i-demultiplexed-seqs paired-end-demux.qza --o-table table --o-representative-sequences rep-seqs --p-n-threads 0 --verbose --p-trunc-len-f 220 --p-trunc-len-r 220 --p-trim-left-f 19 --p-trim-left-r 20 --o-denoising-stats denoising-stats
+
+qiime feature-table summarize --i-table table.qza --o-visualization table.qzv --m-sample-metadata-file Tadpole_Metadata_All.txt
+
+qiime feature-table tabulate-seqs --i-data rep-seqs.qza --o-visualization rep-seqs.qzv
+
+qiime alignment mafft --i-sequences rep-seqs.qza --o-alignment aligned-rep-seqs.qza
+
+qiime alignment mask --i-alignment aligned-rep-seqs.qza --o-masked-alignment masked-alignment-rep-seqs.qza
+
+qiime phylogeny fasttree --i-alignment masked-alignment-rep-seqs.qza --o-tree unrooted-tree.qza
+
+qiime phylogeny midpoint-root --i-tree unrooted-tree.qza --o-rooted-tree rooted-tree.qza
+
+qiime feature-classifier classify-sklearn --i-classifier silva-138-99-515-806-nb-classifier.qza --i-reads rep-seqs.qza --o-classification taxonomy.qza
+
+qiime metadata tabulate --m-input-file taxonomy.qza --o-visualization taxonomy.qzv
+
+qiime taxa filter-table --i-table table.qza --i-taxonomy taxonomy.qza --p-exclude archaea,chloroplast,mitochondria --o-filtered-table table-sans-a-m-c.qza
+
+qiime metadata tabulate --m-input-file table-sans-a-m-c.qza --o-visualization table-sans-a-m-c.qzv
+
+qiime feature-table summarize --i-table table-sans-a-m-c.qza --o-visualization table-sans-a-m-c --m-sample-metadata-file Tadpole_Metadata_All.txt
+
+
+## SEVEN SAMPLES 0 READS PRIOR TO DECONTAM
+A-PLE-25-A-T3_G
+PLE-100-A-T1_S
+PM-1-B-T3_S
+PM-1-B-T4_S
+PM-25-A-T2_S
+PM-25-B-T1_S
+PM-25-C-T2_G
+
+
+#Filter out decontam IDs
+
+qiime feature-table filter-features --i-table table-sans-a-m-c.qza --m-metadata-file features-to-exclude.txt --p-exclude-ids --o-filtered-table decontam-table-sans-a-m-c.qza
+
+qiime metadata tabulate --m-input-file decontam-table-sans-a-m-c.qza --o-visualization decontam-table-sans-a-m-c.qzv
+
+qiime feature-table summarize --i-table decontam-table-sans-a-m-c.qza --o-visualization decontam-table-sans-a-m-c --m-sample-metadata-file Tadpole_Metadata_All.txt
+
+
+
+## Create a table without control tank water samples, and without D0 water samples (for Venn Diagrams)
+
+qiime feature-table filter-samples --i-table decontam-sans-a-m-c-t-k.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Remove]='N'" --o-filtered-table decontam-sans-a-m-c-t-k-w.qza
+
+qiime metadata tabulate --m-input-file decontam-sans-a-m-c-t-k-w.qza --o-visualization decontam-sans-a-m-c-t-k-w.qzv
+
+qiime feature-table summarize --i-table decontam-sans-a-m-c-t-k-w.qza --o-visualization decontam-sans-a-m-c-t-k-w --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+qiime diversity core-metrics-phylogenetic --i-phylogeny rooted-tree.qza --i-table decontam-sans-a-m-c-t-k-w.qza --p-sampling-depth 500 --m-metadata-file Tadpole_Metadata_ALL.txt --output-dir core-metrics-results-decontam-d500-sampletype
+
+#Removes PM_1_C_T3_S, PLE_0_B_T6_G, PM_1_B_T2_S, PLE_1_A_T2_S, PM_1_C_T1_S, PLE_25_A_T2_S
+
+cd core-metrics-results-decontam-d500-sampletype
+qiime tools export --input-path bray_curtis_pcoa_results.qza  --output-path exported_alpha/bray_pcoa
+
+qiime tools export --input-path jaccard_pcoa_results.qza  --output-path exported_alpha/jaccard_pcoa
+
+qiime tools export --input-path bray_curtis_distance_matrix.qza --output-path exported_alpha/bray_curtis
+
+qiime tools export --input-path jaccard_distance_matrix.qza --output-path exported_alpha/jaccard
+
+
+
+## Split off by Gut
+
+qiime feature-table filter-samples --i-table decontam-sans-a-m-c-t-k.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Type]='Gut'" --o-filtered-table gut-decontam-sans-a-m-c-t-k.qza
+
+qiime metadata tabulate --m-input-file gut-decontam-sans-a-m-c-t-k.qza --o-visualization gut-decontam-sans-a-m-c-t-k.qzv
+
+qiime feature-table summarize --i-table gut-decontam-sans-a-m-c-t-k.qza --o-visualization gut-decontam-sans-a-m-c-t-k --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+
+#GUT SAMPLING DEPTH 5700 - Excludes one sample (PLE-0-B-T6_G)
+
+qiime diversity core-metrics-phylogenetic --i-phylogeny rooted-tree.qza --i-table gut-decontam-sans-a-m-c-t-k.qza --p-sampling-depth 5700 --m-metadata-file Tadpole_Metadata.txt --output-dir core-metrics-results-gut
+
+qiime diversity alpha-group-significance --i-alpha-diversity core-metrics-results-gut/faith_pd_vector.qza --m-metadata-file Tadpole_Metadata.txt --o-visualization core-metrics-results-gut/faith-pd-significance.qzv
+
+qiime diversity alpha-group-significance --i-alpha-diversity core-metrics-results-gut/shannon_vector.qza --m-metadata-file Tadpole_Metadata.txt --o-visualization core-metrics-results-gut/shannon-significance.qzv
+
+qiime diversity alpha-group-significance --i-alpha-diversity core-metrics-results-gut/observed_features_vector.qza --m-metadata-file Tadpole_Metadata.txt --o-visualization core-metrics-results-gut/observed_features_vector.qzv
+
+
+## Only Dep for ADONIS GUT
+
+qiime feature-table filter-samples --i-table gut-decontam-sans-a-m-c-t-k.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Dep_Keep]='Y'" --o-filtered-table dep-gut-decontam-sans-a-m-c-t-k.qza
+
+qiime metadata tabulate --m-input-file dep-gut-decontam-sans-a-m-c-t-k.qza --o-visualization dep-gut-decontam-sans-a-m-c-t-k.qzv
+
+qiime feature-table summarize --i-table dep-gut-decontam-sans-a-m-c-t-k.qza --o-visualization dep-gut-decontam-sans-a-m-c-t-k --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+qiime diversity core-metrics-phylogenetic --i-phylogeny rooted-tree.qza --i-table dep-gut-decontam-sans-a-m-c-t-k.qza --p-sampling-depth 5700 --m-metadata-file Tadpole_Metadata.txt --output-dir core-metrics-results-gut-dep
+
+
+## Only Conc for ADONIS GUT
+
+qiime feature-table filter-samples --i-table gut-decontam-sans-a-m-c-t-k.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Con_Keep]='Y'" --o-filtered-table con-gut-decontam-sans-a-m-c-t-k.qza
+
+qiime metadata tabulate --m-input-file con-gut-decontam-sans-a-m-c-t-k.qza --o-visualization con-gut-decontam-sans-a-m-c-t-k.qzv
+
+qiime feature-table summarize --i-table con-gut-decontam-sans-a-m-c-t-k.qza --o-visualization con-gut-decontam-sans-a-m-c-t-k --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+qiime diversity core-metrics-phylogenetic --i-phylogeny rooted-tree.qza --i-table con-gut-decontam-sans-a-m-c-t-k.qza --p-sampling-depth 5700 --m-metadata-file Tadpole_Metadata.txt --output-dir core-metrics-results-gut-con
+
+
+
+## Split off by Skin
+
+qiime feature-table filter-samples --i-table decontam-sans-a-m-c-t-k.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Type]='Skin'" --o-filtered-table skin-decontam-sans-a-m-c-t-k.qza
+
+qiime metadata tabulate --m-input-file skin-decontam-sans-a-m-c-t-k.qza --o-visualization skin-decontam-sans-a-m-c-t-k.qzv
+
+qiime feature-table summarize --i-table skin-decontam-sans-a-m-c-t-k.qza --o-visualization skin-decontam-sans-a-m-c-t-k --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+#SKIN SAMPLING DEPTH 940 - Excludes five samples (PM-1-C-T3_S, PM-1-B-T2_S, PLE-1-A-T2_S, PM-1-C-T1_S, PLE-25-A-T2_S)
+
+
+qiime diversity core-metrics-phylogenetic --i-phylogeny rooted-tree.qza --i-table skin-decontam-sans-a-m-c-t-k.qza --p-sampling-depth 940 --m-metadata-file Tadpole_Metadata.txt --output-dir core-metrics-results-skin
+
+qiime diversity alpha-group-significance --i-alpha-diversity core-metrics-results-skin/faith_pd_vector.qza --m-metadata-file Tadpole_Metadata.txt --o-visualization core-metrics-results-skin/faith-pd-significance.qzv
+
+qiime diversity alpha-group-significance --i-alpha-diversity core-metrics-results-skin/shannon_vector.qza --m-metadata-file Tadpole_Metadata.txt --o-visualization core-metrics-results-skin/shannon-significance.qzv
+
+qiime diversity alpha-group-significance --i-alpha-diversity core-metrics-results-skin/observed_features_vector.qza --m-metadata-file Tadpole_Metadata.txt --o-visualization core-metrics-results-skin/observed_features_vector.qzv
+
+
+## Only Dep for ADONIS SKIN
+
+qiime feature-table filter-samples --i-table skin-decontam-sans-a-m-c-t-k.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Dep_Keep]='Y'" --o-filtered-table dep-skin-decontam-sans-a-m-c-t-k.qza
+
+qiime metadata tabulate --m-input-file dep-skin-decontam-sans-a-m-c-t-k.qza --o-visualization dep-skin-decontam-sans-a-m-c-t-k.qzv
+
+qiime feature-table summarize --i-table dep-skin-decontam-sans-a-m-c-t-k.qza --o-visualization dep-skin-decontam-sans-a-m-c-t-k --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+qiime diversity core-metrics-phylogenetic --i-phylogeny rooted-tree.qza --i-table dep-skin-decontam-sans-a-m-c-t-k.qza --p-sampling-depth 940 --m-metadata-file Tadpole_Metadata.txt --output-dir core-metrics-results-skin-dep
+
+
+## Only Conc for ADONIS SKIN
+
+qiime feature-table filter-samples --i-table skin-decontam-sans-a-m-c-t-k.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Con_Keep]='Y'" --o-filtered-table con-skin-decontam-sans-a-m-c-t-k.qza
+
+qiime metadata tabulate --m-input-file con-skin-decontam-sans-a-m-c-t-k.qza --o-visualization con-skin-decontam-sans-a-m-c-t-k.qzv
+
+qiime feature-table summarize --i-table con-skin-decontam-sans-a-m-c-t-k.qza --o-visualization con-skin-decontam-sans-a-m-c-t-k --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+qiime diversity core-metrics-phylogenetic --i-phylogeny rooted-tree.qza --i-table con-skin-decontam-sans-a-m-c-t-k.qza --p-sampling-depth 940 --m-metadata-file Tadpole_Metadata.txt --output-dir core-metrics-results-skin-con
+
+
+## Split off by Water
+
+qiime feature-table filter-samples --i-table decontam-sans-a-m-c-t-k.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Type]='Water'" --o-filtered-table water-decontam-sans-a-m-c-t-k.qza
+
+qiime metadata tabulate --m-input-file water-decontam-sans-a-m-c-t-k.qza --o-visualization water-decontam-sans-a-m-c-t-k.qzv
+
+qiime feature-table summarize --i-table water-decontam-sans-a-m-c-t-k.qza --o-visualization water-decontam-sans-a-m-c-t-k --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+
+#WATER SAMPLING DEPTH 600 - Excludes no samples
+
+qiime diversity core-metrics-phylogenetic --i-phylogeny rooted-tree.qza --i-table water-decontam-sans-a-m-c-t-k.qza --p-sampling-depth 600 --m-metadata-file Tadpole_Metadata.txt --output-dir core-metrics-results-water
+
+qiime diversity alpha-group-significance --i-alpha-diversity core-metrics-results-water/faith_pd_vector.qza --m-metadata-file Tadpole_Metadata.txt --o-visualization core-metrics-results-water/faith-pd-significance.qzv
+
+qiime diversity alpha-group-significance --i-alpha-diversity core-metrics-results-water/shannon_vector.qza --m-metadata-file Tadpole_Metadata.txt --o-visualization core-metrics-results-water/shannon-significance.qzv
+
+qiime diversity alpha-group-significance --i-alpha-diversity core-metrics-results-water/observed_features_vector.qza --m-metadata-file Tadpole_Metadata.txt --o-visualization core-metrics-results-water/observed_features_vector.qzv
+
+
+## Only Dep for ADONIS WATER
+
+qiime feature-table filter-samples --i-table water-decontam-sans-a-m-c-t-k.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Dep_Keep]='Y'" --o-filtered-table dep-water-decontam-sans-a-m-c-t-k.qza
+
+qiime metadata tabulate --m-input-file dep-water-decontam-sans-a-m-c-t-k.qza --o-visualization dep-water-decontam-sans-a-m-c-t-k.qzv
+
+qiime feature-table summarize --i-table dep-water-decontam-sans-a-m-c-t-k.qza --o-visualization dep-water-decontam-sans-a-m-c-t-k --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+qiime diversity core-metrics-phylogenetic --i-phylogeny rooted-tree.qza --i-table dep-water-decontam-sans-a-m-c-t-k.qza --p-sampling-depth 600 --m-metadata-file Tadpole_Metadata.txt --output-dir core-metrics-results-water-dep
+
+
+## Only Conc for ADONIS WATER
+
+qiime feature-table filter-samples --i-table water-decontam-sans-a-m-c-t-k.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Con_Keep]='Y'" --o-filtered-table con-water-decontam-sans-a-m-c-t-k.qza
+
+qiime metadata tabulate --m-input-file con-water-decontam-sans-a-m-c-t-k.qza --o-visualization con-water-decontam-sans-a-m-c-t-k.qzv
+
+qiime feature-table summarize --i-table con-water-decontam-sans-a-m-c-t-k.qza --o-visualization con-water-decontam-sans-a-m-c-t-k --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+qiime diversity core-metrics-phylogenetic --i-phylogeny rooted-tree.qza --i-table con-water-decontam-sans-a-m-c-t-k.qza --p-sampling-depth 600 --m-metadata-file Tadpole_Metadata.txt --output-dir core-metrics-results-water-con
+
+
+
+
+##Export Feature Tables
+
+
+#For Relative Abundances
+qiime tools export --input-path gut-decontam-sans-a-m-c-t-k.qza --output-path exported-gut
+
+cd exported-gut
+biom convert -i feature-table.biom -o gut-decontam-sans-a-m-c-t-k.tsv --to-tsv
+
+cd
+cd BaseSpace/Tadpoles/All-seq
+qiime tools export --input-path skin-decontam-sans-a-m-c-t-k.qza --output-path exported-skin
+
+cd exported-skin
+biom convert -i feature-table.biom -o skin-decontam-sans-a-m-c-t-k.tsv --to-tsv
+
+cd
+cd BaseSpace/Tadpoles/All-seq
+qiime tools export --input-path water-decontam-sans-a-m-c-t-k.qza --output-path exported-water
+
+cd exported-water
+biom convert -i feature-table.biom -o water-decontam-sans-a-m-c-t-k.tsv --to-tsv
+
+
+
+
+##Export for ADONIS
+
+cd
+cd BaseSpace/Tadpoles/All-seq/core-metrics-results-gut
+qiime tools export --input-path unweighted_unifrac_distance_matrix.qza --output-path exported_alpha/unweighted_unifrac
+
+qiime tools export --input-path weighted_unifrac_distance_matrix.qza --output-path exported_alpha/weighted_unifrac
+
+qiime tools export --input-path bray_curtis_distance_matrix.qza --output-path exported_alpha/bray_curtis
+
+qiime tools export --input-path jaccard_distance_matrix.qza --output-path exported_alpha/jaccard
+
+qiime tools export --input-path faith_pd_vector.qza  --output-path exported_alpha/faith
+
+qiime tools export --input-path shannon_vector.qza  --output-path exported_alpha/shannon
+
+qiime tools export --input-path evenness_vector.qza  --output-path exported_alpha/evenness
+
+qiime tools export --input-path observed_features_vector.qza  --output-path exported_alpha/features
+
+qiime tools export --input-path unweighted_unifrac_pcoa_results.qza  --output-path exported_alpha/unweighted_pcoa
+
+qiime tools export --input-path weighted_unifrac_pcoa_results.qza  --output-path exported_alpha/weighted_pcoa
+
+qiime tools export --input-path bray_curtis_pcoa_results.qza  --output-path exported_alpha/bray_pcoa
+
+qiime tools export --input-path jaccard_pcoa_results.qza  --output-path exported_alpha/jaccard_pcoa
+
+cd
+cd BaseSpace/Tadpoles/All-seq/core-metrics-results-skin
+qiime tools export --input-path unweighted_unifrac_distance_matrix.qza --output-path exported_alpha/unweighted_unifrac
+
+qiime tools export --input-path weighted_unifrac_distance_matrix.qza --output-path exported_alpha/weighted_unifrac
+
+qiime tools export --input-path bray_curtis_distance_matrix.qza --output-path exported_alpha/bray_curtis
+
+qiime tools export --input-path jaccard_distance_matrix.qza --output-path exported_alpha/jaccard
+
+qiime tools export --input-path faith_pd_vector.qza  --output-path exported_alpha/faith
+
+qiime tools export --input-path shannon_vector.qza  --output-path exported_alpha/shannon
+
+qiime tools export --input-path evenness_vector.qza  --output-path exported_alpha/evenness
+
+qiime tools export --input-path observed_features_vector.qza  --output-path exported_alpha/features
+
+qiime tools export --input-path unweighted_unifrac_pcoa_results.qza  --output-path exported_alpha/unweighted_pcoa
+
+qiime tools export --input-path weighted_unifrac_pcoa_results.qza  --output-path exported_alpha/weighted_pcoa
+
+qiime tools export --input-path bray_curtis_pcoa_results.qza  --output-path exported_alpha/bray_pcoa
+
+qiime tools export --input-path jaccard_pcoa_results.qza  --output-path exported_alpha/jaccard_pcoa
+
+cd
+cd BaseSpace/Tadpoles/All-seq/core-metrics-results-water
+qiime tools export --input-path unweighted_unifrac_distance_matrix.qza --output-path exported_alpha/unweighted_unifrac
+
+qiime tools export --input-path weighted_unifrac_distance_matrix.qza --output-path exported_alpha/weighted_unifrac
+
+qiime tools export --input-path bray_curtis_distance_matrix.qza --output-path exported_alpha/bray_curtis
+
+qiime tools export --input-path jaccard_distance_matrix.qza --output-path exported_alpha/jaccard
+
+qiime tools export --input-path faith_pd_vector.qza  --output-path exported_alpha/faith
+
+qiime tools export --input-path shannon_vector.qza  --output-path exported_alpha/shannon
+
+qiime tools export --input-path evenness_vector.qza  --output-path exported_alpha/evenness
+
+qiime tools export --input-path observed_features_vector.qza  --output-path exported_alpha/features
+
+qiime tools export --input-path unweighted_unifrac_pcoa_results.qza  --output-path exported_alpha/unweighted_pcoa
+
+qiime tools export --input-path weighted_unifrac_pcoa_results.qza  --output-path exported_alpha/weighted_pcoa
+
+qiime tools export --input-path bray_curtis_pcoa_results.qza  --output-path exported_alpha/bray_pcoa
+
+qiime tools export --input-path jaccard_pcoa_results.qza  --output-path exported_alpha/jaccard_pcoa
+
+cd
+cd BaseSpace/Tadpoles/All-seq/core-metrics-results-gut-dep
+qiime tools export --input-path unweighted_unifrac_distance_matrix.qza --output-path exported_alpha/unweighted_unifrac
+
+qiime tools export --input-path weighted_unifrac_distance_matrix.qza --output-path exported_alpha/weighted_unifrac
+
+qiime tools export --input-path bray_curtis_distance_matrix.qza --output-path exported_alpha/bray_curtis
+
+qiime tools export --input-path jaccard_distance_matrix.qza --output-path exported_alpha/jaccard
+
+qiime tools export --input-path faith_pd_vector.qza  --output-path exported_alpha/faith
+
+qiime tools export --input-path shannon_vector.qza  --output-path exported_alpha/shannon
+
+qiime tools export --input-path evenness_vector.qza  --output-path exported_alpha/evenness
+
+qiime tools export --input-path observed_features_vector.qza  --output-path exported_alpha/features
+
+qiime tools export --input-path unweighted_unifrac_pcoa_results.qza  --output-path exported_alpha/unweighted_pcoa
+
+qiime tools export --input-path weighted_unifrac_pcoa_results.qza  --output-path exported_alpha/weighted_pcoa
+
+qiime tools export --input-path bray_curtis_pcoa_results.qza  --output-path exported_alpha/bray_pcoa
+
+qiime tools export --input-path jaccard_pcoa_results.qza  --output-path exported_alpha/jaccard_pcoa
+
+cd
+cd BaseSpace/Tadpoles/All-seq/core-metrics-results-gut-con
+qiime tools export --input-path unweighted_unifrac_distance_matrix.qza --output-path exported_alpha/unweighted_unifrac
+
+qiime tools export --input-path weighted_unifrac_distance_matrix.qza --output-path exported_alpha/weighted_unifrac
+
+qiime tools export --input-path bray_curtis_distance_matrix.qza --output-path exported_alpha/bray_curtis
+
+qiime tools export --input-path jaccard_distance_matrix.qza --output-path exported_alpha/jaccard
+
+qiime tools export --input-path faith_pd_vector.qza  --output-path exported_alpha/faith
+
+qiime tools export --input-path shannon_vector.qza  --output-path exported_alpha/shannon
+
+qiime tools export --input-path evenness_vector.qza  --output-path exported_alpha/evenness
+
+qiime tools export --input-path observed_features_vector.qza  --output-path exported_alpha/features
+
+qiime tools export --input-path unweighted_unifrac_pcoa_results.qza  --output-path exported_alpha/unweighted_pcoa
+
+qiime tools export --input-path weighted_unifrac_pcoa_results.qza  --output-path exported_alpha/weighted_pcoa
+
+qiime tools export --input-path bray_curtis_pcoa_results.qza  --output-path exported_alpha/bray_pcoa
+
+qiime tools export --input-path jaccard_pcoa_results.qza  --output-path exported_alpha/jaccard_pcoa
+
+
+cd
+cd BaseSpace/Tadpoles/All-seq/core-metrics-results-skin-dep
+qiime tools export --input-path unweighted_unifrac_distance_matrix.qza --output-path exported_alpha/unweighted_unifrac
+
+qiime tools export --input-path weighted_unifrac_distance_matrix.qza --output-path exported_alpha/weighted_unifrac
+
+qiime tools export --input-path bray_curtis_distance_matrix.qza --output-path exported_alpha/bray_curtis
+
+qiime tools export --input-path jaccard_distance_matrix.qza --output-path exported_alpha/jaccard
+
+qiime tools export --input-path faith_pd_vector.qza  --output-path exported_alpha/faith
+
+qiime tools export --input-path shannon_vector.qza  --output-path exported_alpha/shannon
+
+qiime tools export --input-path evenness_vector.qza  --output-path exported_alpha/evenness
+
+qiime tools export --input-path observed_features_vector.qza  --output-path exported_alpha/features
+
+qiime tools export --input-path unweighted_unifrac_pcoa_results.qza  --output-path exported_alpha/unweighted_pcoa
+
+qiime tools export --input-path weighted_unifrac_pcoa_results.qza  --output-path exported_alpha/weighted_pcoa
+
+qiime tools export --input-path bray_curtis_pcoa_results.qza  --output-path exported_alpha/bray_pcoa
+
+qiime tools export --input-path jaccard_pcoa_results.qza  --output-path exported_alpha/jaccard_pcoa
+
+cd
+cd BaseSpace/Tadpoles/All-seq/core-metrics-results-skin-con
+qiime tools export --input-path unweighted_unifrac_distance_matrix.qza --output-path exported_alpha/unweighted_unifrac
+
+qiime tools export --input-path weighted_unifrac_distance_matrix.qza --output-path exported_alpha/weighted_unifrac
+
+qiime tools export --input-path bray_curtis_distance_matrix.qza --output-path exported_alpha/bray_curtis
+
+qiime tools export --input-path jaccard_distance_matrix.qza --output-path exported_alpha/jaccard
+
+qiime tools export --input-path faith_pd_vector.qza  --output-path exported_alpha/faith
+
+qiime tools export --input-path shannon_vector.qza  --output-path exported_alpha/shannon
+
+qiime tools export --input-path evenness_vector.qza  --output-path exported_alpha/evenness
+
+qiime tools export --input-path observed_features_vector.qza  --output-path exported_alpha/features
+
+qiime tools export --input-path unweighted_unifrac_pcoa_results.qza  --output-path exported_alpha/unweighted_pcoa
+
+qiime tools export --input-path weighted_unifrac_pcoa_results.qza  --output-path exported_alpha/weighted_pcoa
+
+qiime tools export --input-path bray_curtis_pcoa_results.qza  --output-path exported_alpha/bray_pcoa
+
+qiime tools export --input-path jaccard_pcoa_results.qza  --output-path exported_alpha/jaccard_pcoa
+
+cd
+cd BaseSpace/Tadpoles/All-seq/core-metrics-results-water-dep
+qiime tools export --input-path unweighted_unifrac_distance_matrix.qza --output-path exported_alpha/unweighted_unifrac
+
+qiime tools export --input-path weighted_unifrac_distance_matrix.qza --output-path exported_alpha/weighted_unifrac
+
+qiime tools export --input-path bray_curtis_distance_matrix.qza --output-path exported_alpha/bray_curtis
+
+qiime tools export --input-path jaccard_distance_matrix.qza --output-path exported_alpha/jaccard
+
+qiime tools export --input-path faith_pd_vector.qza  --output-path exported_alpha/faith
+
+qiime tools export --input-path shannon_vector.qza  --output-path exported_alpha/shannon
+
+qiime tools export --input-path evenness_vector.qza  --output-path exported_alpha/evenness
+
+qiime tools export --input-path observed_features_vector.qza  --output-path exported_alpha/features
+
+qiime tools export --input-path unweighted_unifrac_pcoa_results.qza  --output-path exported_alpha/unweighted_pcoa
+
+qiime tools export --input-path weighted_unifrac_pcoa_results.qza  --output-path exported_alpha/weighted_pcoa
+
+qiime tools export --input-path bray_curtis_pcoa_results.qza  --output-path exported_alpha/bray_pcoa
+
+qiime tools export --input-path jaccard_pcoa_results.qza  --output-path exported_alpha/jaccard_pcoa
+
+cd
+cd BaseSpace/Tadpoles/All-seq/core-metrics-results-water-con
+qiime tools export --input-path unweighted_unifrac_distance_matrix.qza --output-path exported_alpha/unweighted_unifrac
+
+qiime tools export --input-path weighted_unifrac_distance_matrix.qza --output-path exported_alpha/weighted_unifrac
+
+qiime tools export --input-path bray_curtis_distance_matrix.qza --output-path exported_alpha/bray_curtis
+
+qiime tools export --input-path jaccard_distance_matrix.qza --output-path exported_alpha/jaccard
+
+qiime tools export --input-path faith_pd_vector.qza  --output-path exported_alpha/faith
+
+qiime tools export --input-path shannon_vector.qza  --output-path exported_alpha/shannon
+
+qiime tools export --input-path evenness_vector.qza  --output-path exported_alpha/evenness
+
+qiime tools export --input-path observed_features_vector.qza  --output-path exported_alpha/features
+
+qiime tools export --input-path unweighted_unifrac_pcoa_results.qza  --output-path exported_alpha/unweighted_pcoa
+
+qiime tools export --input-path weighted_unifrac_pcoa_results.qza  --output-path exported_alpha/weighted_pcoa
+
+qiime tools export --input-path bray_curtis_pcoa_results.qza  --output-path exported_alpha/bray_pcoa
+
+qiime tools export --input-path jaccard_pcoa_results.qza  --output-path exported_alpha/jaccard_pcoa
+
+
+
+
+## To get the unique ASVs for the sequencing depth table:
+
+
+# Full Dataset (minus tannin samples and PCR blanks)
+qiime feature-table filter-samples --i-table table.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Tannins (Y/N)]='N'" --o-filtered-table table-t.qza
+
+qiime feature-table filter-samples --i-table table-t.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-exclude-ids --p-where "[Type]='PCR_Blank'" --o-filtered-table table-t-pcr.qza
+
+qiime metadata tabulate --m-input-file table-t-pcr.qza --o-visualization table-t-pcr.qzv
+
+qiime feature-table summarize --i-table table-t-pcr.qza --o-visualization table-t-pcr --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+
+
+qiime feature-table filter-samples --i-table table-sans-a-m-c.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Tannins (Y/N)]='N'" --o-filtered-table table-sans-a-m-c-t.qza
+
+qiime feature-table filter-samples --i-table table-sans-a-m-c-t.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-exclude-ids --p-where "[Type]='PCR_Blank'" --o-filtered-table table-sans-a-m-c-t-pcr.qza
+
+qiime metadata tabulate --m-input-file table-sans-a-m-c-t-pcr.qza --o-visualization table-sans-a-m-c-t-pcr.qzv
+
+qiime feature-table summarize --i-table table-sans-a-m-c-t-pcr.qza --o-visualization table-sans-a-m-c-t-pcr --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+
+
+qiime feature-table filter-samples --i-table decontam-sans-a-m-c-t.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-exclude-ids --p-where "[Type]='PCR_Blank'" --o-filtered-table decontam-sans-a-m-c-t-pcr.qza
+
+qiime metadata tabulate --m-input-file decontam-sans-a-m-c-t-pcr.qza --o-visualization decontam-sans-a-m-c-t-pcr.qzv
+
+qiime feature-table summarize --i-table decontam-sans-a-m-c-t-pcr.qza --o-visualization decontam-sans-a-m-c-t-pcr --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+
+
+# Gut Samples
+qiime feature-table filter-samples --i-table table-t-pcr.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Type]='Gut'" --o-filtered-table table-t-pcr_GUT.qza
+
+qiime metadata tabulate --m-input-file table-t-pcr_GUT.qza --o-visualization table-t-pcr_GUT.qzv
+
+qiime feature-table summarize --i-table table-t-pcr_GUT.qza --o-visualization table-t-pcr_GUT --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+
+qiime feature-table filter-samples --i-table table-sans-a-m-c-t-pcr.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Type]='Gut'" --o-filtered-table table-sans-a-m-c-t-pcr_GUT.qza
+
+qiime metadata tabulate --m-input-file table-sans-a-m-c-t-pcr_GUT.qza --o-visualization table-sans-a-m-c-t-pcr_GUT.qzv
+
+qiime feature-table summarize --i-table table-sans-a-m-c-t-pcr_GUT.qza --o-visualization table-sans-a-m-c-t-pcr_GUT --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+
+
+# Skin Samples
+qiime feature-table filter-samples --i-table table-t-pcr.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Type]='Skin'" --o-filtered-table table-t-pcr_SKIN.qza
+
+qiime metadata tabulate --m-input-file table-t-pcr_SKIN.qza --o-visualization table-t-pcr_SKIN.qzv
+
+qiime feature-table summarize --i-table table-t-pcr_SKIN.qza --o-visualization table-t-pcr_SKIN --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+
+qiime feature-table filter-samples --i-table table-sans-a-m-c-t-pcr.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Type]='Skin'" --o-filtered-table table-sans-a-m-c-t-pcr_SKIN.qza
+
+qiime metadata tabulate --m-input-file table-sans-a-m-c-t-pcr_SKIN.qza --o-visualization table-sans-a-m-c-t-pcr_SKIN.qzv
+
+qiime feature-table summarize --i-table table-sans-a-m-c-t-pcr_SKIN.qza --o-visualization table-sans-a-m-c-t-pcr_SKIN --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+
+
+# Water Samples
+qiime feature-table filter-samples --i-table table-t-pcr.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Type]='Water'" --o-filtered-table table-t-pcr_WATER.qza
+
+qiime metadata tabulate --m-input-file table-t-pcr_WATER.qza --o-visualization table-t-pcr_WATER.qzv
+
+qiime feature-table summarize --i-table table-t-pcr_WATER.qza --o-visualization table-t-pcr_WATER --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+
+qiime feature-table filter-samples --i-table table-sans-a-m-c-t-pcr.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Type]='Water'" --o-filtered-table table-sans-a-m-c-t-pcr_WATER.qza
+
+qiime metadata tabulate --m-input-file table-sans-a-m-c-t-pcr_WATER.qza --o-visualization table-sans-a-m-c-t-pcr_WATER.qzv
+
+qiime feature-table summarize --i-table table-sans-a-m-c-t-pcr_WATER.qza --o-visualization table-sans-a-m-c-t-pcr_WATER --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+
+
+# KC Samples
+qiime feature-table filter-samples --i-table table-t-pcr.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Type]='Kit_Control'" --o-filtered-table table-t-pcr_KC.qza
+
+qiime metadata tabulate --m-input-file table-t-pcr_KC.qza --o-visualization table-t-pcr_KC.qzv
+
+qiime feature-table summarize --i-table table-t-pcr_KC.qza --o-visualization table-t-pcr_KC --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+
+qiime feature-table filter-samples --i-table table-sans-a-m-c-t-pcr.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Type]='Kit_Control'" --o-filtered-table table-sans-a-m-c-t-pcr_KC.qza
+
+qiime metadata tabulate --m-input-file table-sans-a-m-c-t-pcr_KC.qza --o-visualization table-sans-a-m-c-t-pcr_KC.qzv
+
+qiime feature-table summarize --i-table table-sans-a-m-c-t-pcr_KC.qza --o-visualization table-sans-a-m-c-t-pcr_KC --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+
+
+# Unique ASVs of KC at the last step
+qiime feature-table filter-samples --i-table decontam-sans-a-m-c-t-pcr.qza --m-metadata-file Tadpole_Metadata_ALL.txt --p-where "[Type]='Kit_Control'" --o-filtered-table decontam-sans-a-m-c-t-pcr_onlykc.qza
+
+qiime metadata tabulate --m-input-file decontam-sans-a-m-c-t-pcr_onlykc.qza --o-visualization decontam-sans-a-m-c-t-pcr_onlykc.qzv
+
+qiime feature-table summarize --i-table decontam-sans-a-m-c-t-pcr_onlykc.qza --o-visualization decontam-sans-a-m-c-t-pcr_onlykc --m-sample-metadata-file Tadpole_Metadata_ALL.txt
+
+
+
+
+
+# Family level absolute abundance export for percentages in results section
+
+qiime taxa collapse --i-table water-decontam-sans-a-m-c-t-k.qza --i-taxonomy taxonomy.qza --p-level 5 --output-dir family_export/water
+
+cd family_export/water
+
+qiime tools export --input-path collapsed_table.qza --output-path exported
+
+cd exported
+
+biom convert -i feature-table.biom -o L5_abs_freq_warer.tsv --to-tsv
+
+cd
+cd BaseSpace/Tadpoles/All-seq
+
+qiime taxa collapse --i-table gut-decontam-sans-a-m-c-t-k.qza --i-taxonomy taxonomy.qza --p-level 5 --output-dir family_export/gut
+
+cd family_export/gut
+
+qiime tools export --input-path collapsed_table.qza --output-path exported
+
+cd exported
+
+biom convert -i feature-table.biom -o L5_abs_freq_gut.tsv --to-tsv
+
+cd
+cd BaseSpace/Tadpoles/All-seq
+
+qiime taxa collapse --i-table skin-decontam-sans-a-m-c-t-k.qza --i-taxonomy taxonomy.qza --p-level 5 --output-dir family_export/skin
+
+cd family_export/skin
+
+qiime tools export --input-path collapsed_table.qza --output-path exported
+
+cd exported
+
+biom convert -i feature-table.biom -o L5_abs_freq_skin.tsv --to-tsv

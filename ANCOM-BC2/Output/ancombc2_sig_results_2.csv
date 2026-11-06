@@ -1,0 +1,12 @@
+Pond,taxon,LFC (SE),% change,p,q (BH-adjusted)
+PLE,d__Bacteria;p__Proteobacteria;c__Gammaproteobacteria;o__Pseudomonadales;f__Pseudomonadaceae,-2.33 (0.15),-19.90%,< 0.001,< 0.001
+PLE,d__Bacteria;p__Proteobacteria;c__Gammaproteobacteria;o__Aeromonadales;f__Aeromonadaceae,-1.16 (0.20),-10.50%,< 0.001,< 0.001
+PLE,d__Bacteria;p__Proteobacteria;c__Alphaproteobacteria;o__Ferrovibrionales;f__Ferrovibrionales,-2.36 (0.14),-20.20%,< 0.001,0.002
+PLE,d__Bacteria;p__Proteobacteria;c__Alphaproteobacteria;o__Reyranellales;f__Reyranellaceae,-0.43 (0.10),-4.00%,< 0.001,0.004
+PLE,d__Bacteria;p__Proteobacteria;c__Gammaproteobacteria;o__Burkholderiales;f__Burkholderiaceae,-1.06 (0.11),-9.60%,< 0.001,0.004
+PLE,d__Bacteria;p__Firmicutes;c__Clostridia;o__Oscillospirales;f__Oscillospirales,0.62 (0.15),6.10%,< 0.001,0.006
+PLE,d__Bacteria;p__Proteobacteria;c__Gammaproteobacteria;o__Burkholderiales;f__Alcaligenaceae,-0.41 (0.12),-3.80%,0.004,0.027
+PM,d__Bacteria;p__Proteobacteria;c__Gammaproteobacteria;o__Burkholderiales;f__Comamonadaceae,-2.10 (0.18),-18.10%,< 0.001,< 0.001
+PM,d__Bacteria;p__Bacteroidota;c__Bacteroidia;o__Flavobacteriales;f__Flavobacteriaceae,-1.70 (0.27),-14.90%,< 0.001,< 0.001
+PM,d__Bacteria;p__Proteobacteria;c__Gammaproteobacteria;o__Pseudomonadales;f__Pseudomonadaceae,-0.68 (0.21),-6.30%,0.003,0.025
+PM,d__Bacteria;p__Firmicutes;c__Clostridia;o__Oscillospirales;f__Ruminococcaceae,-0.56 (0.13),-5.20%,0.004,0.028

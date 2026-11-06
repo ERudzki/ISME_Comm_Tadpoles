@@ -1,0 +1,182 @@
+---
+title: "Tadpole_Jonckheere_Terpstra"
+author: "Elizabeth N. Rudzki"
+date: "2025-06-30"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+if (!requireNamespace("DescTools", quietly = TRUE)){install.packages("DescTools")}
+library(DescTools)
+
+if (!requireNamespace("devtools", quietly = TRUE)){install.packages("devtools")}
+library(devtools)
+
+if (!requireNamespace("qiime2R", quietly = TRUE)){devtools:install_github("jbisanz/qiime2R")}
+library(qiime2R)
+```
+
+# Dependencies {.tabset}
+
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-apple-darwin20 (64-bit)
+Running under: macOS 15.5
+
+## Attached base packages:
+
+**Package Name**  | **Version**
+------------- | -------------
+stats  | 4.3.3
+graphics  | 4.3.3
+grDevices  | 4.3.3
+utils  | 4.3.3
+datasets  | 4.3.3
+methods  | 4.3.3
+base  | 4.3.3
+
+## Other attached packages:
+
+**Package Name**  | **Version**  | **Imports**
+------------- | ------------- | -------------
+DescTools  | 1.1.5  | graphics, grDevices, methods, MASS, utils, boot, mvtnorm, expm, Rcpp (>= 0.12.10), rstudioapi, Exact, gld, data.table, readxl, readr, haven, httr, withr, cli, fs
+qiime2R  | 0.99.6  | ape (>= 5.2), Biostrings (>= 2.46.0), biomformat (>= 1.6.0), phyloseq (>= 1.22.3), Hmisc (>= 4.1-1), yaml (>= 2.2.0), tidyr (>= 0.8.3), dplyr (>= 0.8.1), stats, utils
+devtools  | 2.4.5  | cli (>= 3.3.0), desc (>= 1.4.1), ellipsis (>= 0.3.2), fs (>= 1.5.2), lifecycle (>= 1.0.1), memoise (>= 2.0.1), miniUI (>= 0.1.1.1), pkgbuild (>= 1.3.1), pkgdown (>= 2.0.6), pkgload (>= 1.3.0), profvis (>= 0.3.7), rcmdcheck (>= 1.4.0), remotes (>= 2.4.2), rlang (>= 1.0.4), roxygen2 (>= 7.2.1), rversions (>= 2.1.1), sessioninfo (>= 1.2.2), stats, testthat (>= 3.1.5), tools, urlchecker (>= 1.0.1), utils, withr (>= 2.5.0)
+
+# Functions of qiime2R
+
+read_qza() - Function for reading artifacts (.qza).
+
+qza_to_phyloseq() - Imports multiple artifacts to produce a phyloseq object.
+
+read_q2metadata() - Reads qiime2 metadata file (containing q2-types definition line).
+
+write_q2manifest() - Writes a read manifest file to import data into qiime2.
+
+theme_q2r() - A ggplot2 theme for publication-type figures.
+
+print_provenance() - A function to display provenance information.
+
+is_q2metadata() - A function to check if a file is a qiime2 metadata file.
+
+parse_taxonomy() - A function to parse taxonomy strings and return a table where each column is a taxonomic class.
+
+parse_ordination() - A function to parse the internal ordination format.
+
+# Nomenclature
+
+The manuscript and code files may utilize different naming conventions for groups and treatments as follows:
+
+**Manuscript Name**  | **Related Script Name(s)**
+------------- | -------------
+Sample Type  | Type
+Microbial Depletion  | Depletion, Dep, or Treatment
+Microbial Density  | Concentration, Con, PW_Percentage, or Percentage
+Pond Source | Pond, or Pond_Treatment
+
+# Description of Test
+
+To test for a monotonic (a function between ordered sets that preserves the given order) trend (correlation) across ordered groups (i.e., ordinal IV), this code will use a Jonckheere-Terpstra Test. Your dependent variable must be continuous or ordinal, and you must expect increasing or decreasing trends (not just any difference).
+
+The exact calculation requires that there be no ties and that the sample size is less than 100.
+
+When data are tied and sample size is at most 100 permutation p-value is returned. Recommend that the user set nperm to be 1000 or higher if permutation p-value is desired.
+
+# Results {.tabset}
+
+```{r seed, include=FALSE}
+## SET SEED
+set.seed(745869)
+### This will allow others to reproduce your exact numbers.
+```
+
+## Gut Samples {.tabset .tabset-pills}
+
+### PLE
+
+```{r Gut_PLE, warning=FALSE}
+metadata<-read_q2metadata("/core-metrics-results-gut/Tadpole_Metadata_Gut_Alpha_Con_Q2.txt")
+
+metadata_PLE <- metadata[ which(metadata$Pond == "PLE"), ]
+
+#### Formula of the form lhs ~ rhs where lhs gives the data values and rhs the corresponding groups.
+
+#### ASVs
+JonckheereTerpstraTest(ASVs ~ Percentage, metadata_PLE, nperm = 5000)
+
+#### Shannon
+JonckheereTerpstraTest(Shannon ~ Percentage, metadata_PLE, nperm = 5000)
+
+#### Faiths
+JonckheereTerpstraTest(Faith ~ Percentage, metadata_PLE, nperm = 5000)
+
+#### Evenness
+JonckheereTerpstraTest(Evenness ~ Percentage, metadata_PLE, nperm = 5000)
+```
+
+### PM
+
+```{r Gut_PM, warning=FALSE}
+metadata_PM <- metadata[ which(metadata$Pond == "PM"), ]
+
+#### ASVs
+JonckheereTerpstraTest(ASVs ~ Percentage, metadata_PM, nperm = 5000)
+
+#### Shannon
+JonckheereTerpstraTest(Shannon ~ Percentage, metadata_PM, nperm = 5000)
+
+#### Faiths
+JonckheereTerpstraTest(Faith ~ Percentage, metadata_PM, nperm = 5000)
+
+#### Evenness
+JonckheereTerpstraTest(Evenness ~ Percentage, metadata_PM, nperm = 5000)
+```
+
+## Skin Samples {.tabset .tabset-pills}
+
+### PLE
+
+```{r Skin_PLE}
+metadata_s<-read_q2metadata("/core-metrics-results-skin/Tadpole_Metadata_Skin_Alpha_Con_Q2.txt")
+
+metadata_s_PLE <- metadata_s[ which(metadata_s$Pond == "PLE"), ]
+```
+
+```{r Skin_PLE_Two, warnings=FALSE}
+##### ASVs
+JonckheereTerpstraTest(ASVs ~ Percentage, metadata_s_PLE, nperm = 5000)
+
+##### Shannon
+JonckheereTerpstraTest(Shannon ~ Percentage, metadata_s_PLE, nperm = 5000)
+
+##### Faiths
+JonckheereTerpstraTest(Faith ~ Percentage, metadata_s_PLE, nperm = 5000)
+
+##### Evenness
+JonckheereTerpstraTest(Evenness ~ Percentage, metadata_s_PLE, nperm = 5000)
+```
+
+### PM
+
+```{r Skin_PM}
+metadata_s_PM <- metadata_s[ which(metadata_s$Pond == "PM"), ]
+```
+
+```{r Skin_PM_Two, warnings=FALSE}
+##### ASVs
+JonckheereTerpstraTest(ASVs ~ Percentage, metadata_s_PM, nperm = 5000)
+
+##### Shannon
+JonckheereTerpstraTest(Shannon ~ Percentage, metadata_s_PM, nperm = 5000)
+
+##### Faiths
+JonckheereTerpstraTest(Faith ~ Percentage, metadata_s_PM, nperm = 5000)
+
+##### Evenness
+JonckheereTerpstraTest(Evenness ~ Percentage, metadata_s_PM, nperm = 5000)
+```

@@ -1,0 +1,1271 @@
+---
+title: "Tadpole_TaxaBarplots"
+author: "Elizabeth N. Rudzki"
+date: "2025-04-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+if (!requireNamespace("phyloseq", quietly = TRUE)){install.packages("phyloseq")}
+library(phyloseq)
+if (!requireNamespace("dplyr", quietly = TRUE)){install.packages("dplyr")}
+library(dplyr)
+if (!requireNamespace("tidyverse", quietly = TRUE)){install.packages("tidyverse")}
+library(tidyverse) 
+if (!requireNamespace("vegan", quietly = TRUE)){install.packages("vegan")}
+library(vegan)
+if (!requireNamespace("patchwork", quietly = TRUE)){install.packages("patchwork")}
+library(patchwork)
+if (!requireNamespace("ggpubr", quietly = TRUE)){install.packages("ggpubr")}
+library(ggpubr)
+if (!requireNamespace("ggthemes", quietly = TRUE)){install.packages("ggthemes")}
+library(ggthemes)
+```
+
+# WATER
+
+```{r Water}
+#Clear workspace
+rm(list=ls())
+
+# BUILD PHYLOSEQ
+otu <- read.table(file = "/exported-water/water-decontam-sans-a-m-c-t-k.tsv", sep = "\t", header = T, row.names = 1, comment.char = "")
+
+taxonomy <- read.table(file = "/exported-water/taxonomy.tsv", sep = "\t", header = T ,row.names = 1)
+
+# clean the taxonomy, Greengenes format
+tax <- taxonomy %>%
+  select(Taxon) %>% 
+  separate(Taxon, c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"), "; ")
+
+tax.clean <- data.frame(row.names = row.names(tax),
+                        Kingdom = str_replace(tax[,1], "k__",""),
+                        Phylum = str_replace(tax[,2], "p__",""),
+                        Class = str_replace(tax[,3], "c__",""),
+                        Order = str_replace(tax[,4], "o__",""),
+                        Family = str_replace(tax[,5], "f__",""),
+                        Genus = str_replace(tax[,6], "g__",""),
+                        Species = str_replace(tax[,7], "s__",""),
+                        stringsAsFactors = FALSE)
+
+tax.clean[is.na(tax.clean)] <- ""
+tax.clean[tax.clean=="__"] <- ""
+
+# For all empty cells, replace with "Unclassified" so it is apparent when you grab specific levels that there was no specific classification
+for (i in 1:nrow(tax.clean)){
+  if (tax.clean[i,7] != ""){
+    tax.clean$Species[i] <- paste(tax.clean$Genus[i], tax.clean$Species[i], sep = " ")
+  } else if (tax.clean[i,2] == ""){
+    kingdom <- paste("Unclassified", tax.clean[i,1], sep = " ")
+    tax.clean[i, 2:7] <- kingdom
+  } else if (tax.clean[i,3] == ""){
+    phylum <- paste("Unclassified", tax.clean[i,2], sep = " ")
+    tax.clean[i, 3:7] <- phylum
+  } else if (tax.clean[i,4] == ""){
+    class <- paste("Unclassified", tax.clean[i,3], sep = " ")
+    tax.clean[i, 4:7] <- class
+  } else if (tax.clean[i,5] == ""){
+    order <- paste("Unclassified", tax.clean[i,4], sep = " ")
+    tax.clean[i, 5:7] <- order
+  } else if (tax.clean[i,6] == ""){
+    family <- paste("Unclassified", tax.clean[i,5], sep = " ")
+    tax.clean[i, 6:7] <- family
+  } else if (tax.clean[i,7] == ""){
+    tax.clean$Species[i] <- paste("Unclassified ",tax.clean$Genus[i], sep = " ")
+  }
+}
+
+# load metadata
+metadata <- read.table(file = "/core-metrics-results-water/Tadpole_Metadata_Water_Barplots.txt", sep = "\t", header = FALSE, row.names=1, skip=1)
+colnames(metadata)<-c("absolute-filepath","direction","Type","Type2","Tank_ID","Day","Pond_Treatment","Pond","PW_Percentage","Treatment","ASVs","Shannon","Faiths","Evenness")
+OTU = otu_table(as.matrix(otu), taxa_are_rows = TRUE)
+TAX = tax_table(as.matrix(tax.clean))
+SAMPLE <- sample_data(metadata)
+TREE = read_tree("/exported-water/tree.nwk")
+
+# merge the data
+ps <- phyloseq(OTU, TAX, SAMPLE,TREE)
+
+# Abundance bar plot by Phylum - Growth and culture conditions 
+# change to character for easy-adjusted level
+ps.rel = transform_sample_counts(ps, function(x) x/sum(x)*100)
+# agglomerate taxa
+glom <- tax_glom(ps.rel, taxrank = 'Phylum', NArm = FALSE)
+Source.abundance <- subset_samples(glom, Type == "Source")
+Con.abundance <- subset_samples(glom, Type == "Control")
+ConD0.abundance <- subset_samples(Con.abundance, Day == "0")
+ConD6.abundance <- subset_samples (Con.abundance, Day == "6")
+Inhab.abundance <-subset_samples(glom, Type == "Water")
+
+ps.melt.Source <- psmelt(Source.abundance)
+ps.melt.ConD0 <- psmelt(ConD0.abundance)
+ps.melt.ConD6 <- psmelt(ConD6.abundance)
+ps.melt.Inhab <- psmelt(Inhab.abundance)
+
+ps.melt.Source$Phylum <- as.character(ps.melt.Source$Phylum)
+ps.melt.Source$Type2 <- factor(ps.melt.Source$Type2, levels = c("Dep",""))
+ps.melt.Source$Pond <- factor(ps.melt.Source$Pond, levels = c("LW","PLE","PM"))
+ps.melt.Source$Treatmemt <- factor(ps.melt.Source$Treatment, levels = c("A","F","U"))
+
+ps.melt.ConD0$Phylum <- as.character(ps.melt.ConD0$Phylum)
+ps.melt.ConD0$Type2 <- factor(ps.melt.ConD0$Type2, levels = c("Dep",""))
+ps.melt.ConD0$Pond <- factor(ps.melt.ConD0$Pond, levels = c("LW","PLE","PM"))
+ps.melt.ConD0$Pond_Treatment <- factor(ps.melt.ConD0$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt.ConD0$PW_Percentage <- factor(ps.melt.ConD0$PW_Percentage, levels = c(0, 1, 25, 50, 75, 100))
+
+ps.melt.ConD6$Phylum <- as.character(ps.melt.ConD6$Phylum)
+ps.melt.ConD6$Type2 <- factor(ps.melt.ConD6$Type2, levels = c("Dep",""))
+ps.melt.ConD6$Pond <- factor(ps.melt.ConD6$Pond, levels = c("LW","PLE","PM"))
+ps.melt.ConD6$Pond_Treatment <- factor(ps.melt.ConD6$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt.ConD6$PW_Percentage <- factor(ps.melt.ConD6$PW_Percentage, levels = c(0, 1, 25, 50, 75, 100))
+
+ps.melt.Inhab$Phylum <- as.character(ps.melt.Inhab$Phylum)
+ps.melt.Inhab$Type2 <- factor(ps.melt.Inhab$Type2, levels = c("Dep",""))
+ps.melt.Inhab$Pond <- factor(ps.melt.Inhab$Pond, levels = c("LW","PLE","PM"))
+ps.melt.Inhab$Pond_Treatment <- factor(ps.melt.Inhab$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt.Inhab$PW_Percentage <- factor(ps.melt.Inhab$PW_Percentage, levels = c(0, 1, 25, 50, 75, 100))
+
+#add median to the tables
+ps.melt.Source <- ps.melt.Source %>%
+  group_by(Type2, Pond, Treatment, Phylum) %>%
+  mutate(median=median(Abundance))
+
+ps.melt.ConD0 <- ps.melt.ConD0 %>%
+  group_by(Type2, Pond, Pond_Treatment, PW_Percentage, Phylum) %>%
+  mutate(median=median(Abundance))
+
+ps.melt.ConD6 <- ps.melt.ConD6 %>%
+  group_by(Type2, Pond, Pond_Treatment, PW_Percentage, Phylum) %>%
+  mutate(median=median(Abundance))
+
+ps.melt.Inhab <- ps.melt.Inhab %>%
+  group_by(Type2, Pond, Pond_Treatment, PW_Percentage, Phylum) %>%
+  mutate(median=median(Abundance))
+
+# select group median > 1
+keep <- unique(ps.melt.Source$Phylum[ps.melt.Source$median > 1])
+ps.melt.Source$Phylum[!(ps.melt.Source$Phylum %in% keep)] <- "< 1% Abundance"
+
+keep <- unique(ps.melt.ConD0$Phylum[ps.melt.ConD0$median > 1])
+ps.melt.ConD0$Phylum[!(ps.melt.ConD0$Phylum %in% keep)] <- "< 1% Abundance"
+
+keep <- unique(ps.melt.ConD6$Phylum[ps.melt.ConD6$median > 1])
+ps.melt.ConD6$Phylum[!(ps.melt.ConD6$Phylum %in% keep)] <- "< 1% Abundance"
+
+keep <- unique(ps.melt.Inhab$Phylum[ps.melt.Inhab$median > 1])
+ps.melt.Inhab$Phylum[!(ps.melt.Inhab$Phylum %in% keep)] <- "< 1% Abundance"
+
+#to get the same rows together
+ps.melt.Source_sum <- ps.melt.Source %>%
+  group_by(Sample, Type2, Pond, Treatment, Phylum) %>%
+  summarise(Abundance=sum(Abundance))
+
+ps.melt.ConD0_sum <- ps.melt.ConD0 %>%
+  group_by(Sample, Type2, Pond, Pond_Treatment, PW_Percentage, Phylum) %>%
+  summarise(Abundance=sum(Abundance))
+
+ps.melt.ConD6_sum <- ps.melt.ConD6 %>%
+  group_by(Sample, Type2, Pond, Pond_Treatment, PW_Percentage, Phylum) %>%
+  summarise(Abundance=sum(Abundance))
+
+ps.melt.Inhab_sum <- ps.melt.Inhab %>%
+  group_by(Sample, Type2, Pond, Pond_Treatment, PW_Percentage, Phylum) %>%
+  summarise(Abundance=sum(Abundance))
+
+# Plot Source Water Samples
+ps.melt.Source_sum$Type2 <- factor(ps.melt.Source_sum$Type2, levels = c("Dep",""))
+ps.melt.Source_sum$Pond <- factor(ps.melt.Source_sum$Pond, levels = c("LW","PLE","PM"))
+ps.melt.Source_sum$Treatment <- factor(ps.melt.Source_sum$Treatment, levels = c("A","F","U"))
+
+cols = c("#4E79A7","#A0CBE8","#F28E2B","#FFBE7D","#59A14F","#8CD17D","#B6992D","#F1CE63","#499894","#86BCB6","#E15759","#FF9D9A","#79706E","#BAB0AC","#D37295","#FABFD2","#B07AA1","#D4A6C8")
+c1<-ggplot(ps.melt.Source_sum , aes(x = Sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", aes(fill=Phylum)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Phylum",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Treatment, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=10),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c1, filename="Water_Source_Phylum_names.pdf", width = 8, height = 4)
+
+c2<-ggplot(ps.melt.Source_sum , aes(x = Sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", aes(fill=Phylum)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Phylum",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Treatment, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=0),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c2, filename="Water_Source_Phylum.pdf", width = 8, height = 4)
+
+
+# Plot Control D0 Water Samples
+ps.melt.ConD0_sum$Type2 <- factor(ps.melt.ConD0_sum$Type2, levels = c("Dep",""))
+ps.melt.ConD0_sum$Pond <- factor(ps.melt.ConD0_sum$Pond, levels = c("LW","PLE","PM"))
+ps.melt.ConD0_sum$Pond_Treatment <- factor(ps.melt.ConD0_sum$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt.ConD0_sum$PW_Percentage <- factor(ps.melt.ConD0_sum$PW_Percentage, levels = c("0","1","25","50","75","100"))
+
+
+cols = c("#4E79A7","#A0CBE8","#F28E2B","#FFBE7D","#9D7660","#59A14F","#499894","#86BCB6","#FF9D9A","#79706E","#BAB0AC","#D37295","#FABFD2","#D4A6C8")
+c1<-ggplot(ps.melt.ConD0_sum , aes(x = Sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", aes(fill=Phylum)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Phylum",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=10),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c1, filename="Water_ConD0_Phylum_names.pdf", width = 8, height = 4)
+
+c2<-ggplot(ps.melt.ConD0_sum , aes(x = Sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", aes(fill=Phylum)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Phylum",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=0),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c2, filename="Water_ConD0_Phylum.pdf", width = 8, height = 4)
+
+
+# Plot Control D6 Water Samples
+ps.melt.ConD6_sum$Type2 <- factor(ps.melt.ConD6_sum$Type2, levels = c("Dep",""))
+ps.melt.ConD6_sum$Pond <- factor(ps.melt.ConD6_sum$Pond, levels = c("LW","PLE","PM"))
+ps.melt.ConD6_sum$Pond_Treatment <- factor(ps.melt.ConD6_sum$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt.ConD6_sum$PW_Percentage <- factor(ps.melt.ConD6_sum$PW_Percentage, levels = c("0","1","25","50","75","100"))
+
+
+cols = c("#4E79A7","#F28E2B","#D7B5A6","#FFBE7D","#499894","#E15759","#79706E","#BAB0AC","#FABFD2","#B07AA1","#D4A6C8")
+c1<-ggplot(ps.melt.ConD6_sum , aes(x = Sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", aes(fill=Phylum)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Phylum",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=10),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c1, filename="Water_ConD6_Phylum_names.pdf", width = 8, height = 4)
+
+c2<-ggplot(ps.melt.ConD6_sum , aes(x = Sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", aes(fill=Phylum)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Phylum",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=0),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c2, filename="Water_ConD6_Phylum.pdf", width = 8, height = 4)
+
+
+# Plot Inhab Water Samples
+ps.melt.Inhab_sum$Type2 <- factor(ps.melt.Inhab_sum$Type2, levels = c("Dep",""))
+ps.melt.Inhab_sum$Pond <- factor(ps.melt.Inhab_sum$Pond, levels = c("LW","PLE","PM"))
+ps.melt.Inhab_sum$Pond_Treatment <- factor(ps.melt.Inhab_sum$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt.Inhab_sum$PW_Percentage <- factor(ps.melt.Inhab_sum$PW_Percentage, levels = c("0","1","25","50","75","100"))
+
+
+cols = c("#4E79A7","#F28E2B","#D7B5A6","#FFBE7D","#499894","#E15759","#79706E","#BAB0AC","#FABFD2","#D4A6C8")
+c1<-ggplot(ps.melt.Inhab_sum , aes(x = Sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", aes(fill=Phylum)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Phylum",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=10),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c1, filename="Water_Inhab_Phylum_names.pdf", width = 8, height = 4)
+
+c2<-ggplot(ps.melt.Inhab_sum , aes(x = Sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", aes(fill=Phylum)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Phylum",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=0),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c2, filename="Water_Inhab_Phylum.pdf", width = 8, height = 4)
+
+##By Family
+
+ps.rel = transform_sample_counts(ps, function(x) x/sum(x)*100)
+# agglomerate taxa
+glom <- tax_glom(ps.rel, taxrank = 'Family', NArm = FALSE)
+Source.abundance <- subset_samples(glom, Type == "Source")
+Con.abundance <- subset_samples(glom, Type == "Control")
+ConD0.abundance <- subset_samples(Con.abundance, Day == "0")
+ConD6.abundance <- subset_samples (Con.abundance, Day == "6")
+Inhab.abundance <-subset_samples(glom, Type == "Water")
+
+ps.melt.Source <- psmelt(Source.abundance)
+ps.melt.ConD0 <- psmelt(ConD0.abundance)
+ps.melt.ConD6 <- psmelt(ConD6.abundance)
+ps.melt.Inhab <- psmelt(Inhab.abundance)
+
+ps.melt.Source$Family <- as.character(ps.melt.Source$Family)
+ps.melt.Source$Type2 <- factor(ps.melt.Source$Type2, levels = c("Dep",""))
+ps.melt.Source$Pond <- factor(ps.melt.Source$Pond, levels = c("LW","PLE","PM"))
+ps.melt.Source$Treatmemt <- factor(ps.melt.Source$Treatment, levels = c("A","F","U"))
+
+ps.melt.ConD0$Family <- as.character(ps.melt.ConD0$Family)
+ps.melt.ConD0$Type2 <- factor(ps.melt.ConD0$Type2, levels = c("Dep",""))
+ps.melt.ConD0$Pond <- factor(ps.melt.ConD0$Pond, levels = c("LW","PLE","PM"))
+ps.melt.ConD0$Pond_Treatment <- factor(ps.melt.ConD0$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt.ConD0$PW_Percentage <- factor(ps.melt.ConD0$PW_Percentage, levels = c(0, 1, 25, 50, 75, 100))
+
+ps.melt.ConD6$Family <- as.character(ps.melt.ConD6$Family)
+ps.melt.ConD6$Type2 <- factor(ps.melt.ConD6$Type2, levels = c("Dep",""))
+ps.melt.ConD6$Pond <- factor(ps.melt.ConD6$Pond, levels = c("LW","PLE","PM"))
+ps.melt.ConD6$Pond_Treatment <- factor(ps.melt.ConD6$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt.ConD6$PW_Percentage <- factor(ps.melt.ConD6$PW_Percentage, levels = c(0, 1, 25, 50, 75, 100))
+
+ps.melt.Inhab$Family <- as.character(ps.melt.Inhab$Family)
+ps.melt.Inhab$Type2 <- factor(ps.melt.Inhab$Type2, levels = c("Dep",""))
+ps.melt.Inhab$Pond <- factor(ps.melt.Inhab$Pond, levels = c("LW","PLE","PM"))
+ps.melt.Inhab$Pond_Treatment <- factor(ps.melt.Inhab$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt.Inhab$PW_Percentage <- factor(ps.melt.Inhab$PW_Percentage, levels = c(0, 1, 25, 50, 75, 100))
+
+#add median to the tables
+ps.melt.Source <- ps.melt.Source %>%
+  group_by(Type2, Pond, Treatment, Family) %>%
+  mutate(median=median(Abundance))
+
+ps.melt.ConD0 <- ps.melt.ConD0 %>%
+  group_by(Type2, Pond, Pond_Treatment, PW_Percentage, Family) %>%
+  mutate(median=median(Abundance))
+
+ps.melt.ConD6 <- ps.melt.ConD6 %>%
+  group_by(Type2, Pond, Pond_Treatment, PW_Percentage, Family) %>%
+  mutate(median=median(Abundance))
+
+ps.melt.Inhab <- ps.melt.Inhab %>%
+  group_by(Type2, Pond, Pond_Treatment, PW_Percentage, Family) %>%
+  mutate(median=median(Abundance))
+
+# select group median > 5
+keep <- unique(ps.melt.Source$Family[ps.melt.Source$median > 5])
+ps.melt.Source$Family[!(ps.melt.Source$Family %in% keep)] <- "< 5% Abundance"
+
+keep <- unique(ps.melt.ConD0$Family[ps.melt.ConD0$median > 5])
+ps.melt.ConD0$Family[!(ps.melt.ConD0$Family %in% keep)] <- "< 5% Abundance"
+
+keep <- unique(ps.melt.ConD6$Family[ps.melt.ConD6$median > 5])
+ps.melt.ConD6$Family[!(ps.melt.ConD6$Family %in% keep)] <- "< 5% Abundance"
+
+keep <- unique(ps.melt.Inhab$Family[ps.melt.Inhab$median > 5])
+ps.melt.Inhab$Family[!(ps.melt.Inhab$Family %in% keep)] <- "< 5% Abundance"
+
+#to get the same rows together
+ps.melt.Source_sum <- ps.melt.Source %>%
+  group_by(Sample, Type2, Pond, Treatment, Family) %>%
+  summarise(Abundance=sum(Abundance))
+
+ps.melt.ConD0_sum <- ps.melt.ConD0 %>%
+  group_by(Sample, Type2, Pond, Pond_Treatment, PW_Percentage, Family) %>%
+  summarise(Abundance=sum(Abundance))
+
+ps.melt.ConD6_sum <- ps.melt.ConD6 %>%
+  group_by(Sample, Type2, Pond, Pond_Treatment, PW_Percentage, Family) %>%
+  summarise(Abundance=sum(Abundance))
+
+ps.melt.Inhab_sum <- ps.melt.Inhab %>%
+  group_by(Sample, Type2, Pond, Pond_Treatment, PW_Percentage, Family) %>%
+  summarise(Abundance=sum(Abundance))
+
+# Plot Source Water Samples
+ps.melt.Source_sum$Type2 <- factor(ps.melt.Source_sum$Type2, levels = c("Dep",""))
+ps.melt.Source_sum$Pond <- factor(ps.melt.Source_sum$Pond, levels = c("LW","PLE","PM"))
+ps.melt.Source_sum$Treatment <- factor(ps.melt.Source_sum$Treatment, levels = c("A","F","U"))
+
+cols = c("#4E79A7","#A0CBE8","#F28E2B","#FFBE7D","#59A14F","#8CD17D","#B6992D","#F1CE63","#499894","#86BCB6","#E15759","#FF9D9A","#79706E","#BAB0AC","#D37295","#FABFD2","#B07AA1")
+c1<-ggplot(ps.melt.Source_sum , aes(x = Sample, y = Abundance, fill = Family)) + 
+  geom_bar(stat = "identity", aes(fill=Family)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Family",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Treatment, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=10),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c1, filename="Water_Source_Family_names.pdf", width = 8, height = 4)
+
+c2<-ggplot(ps.melt.Source_sum , aes(x = Sample, y = Abundance, fill = Family)) + 
+  geom_bar(stat = "identity", aes(fill=Family)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Family",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Treatment, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=0),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c2, filename="Water_Source_Family.pdf", width = 8, height = 4)
+
+
+# Plot Control D0 Water Samples
+ps.melt.ConD0_sum$Type2 <- factor(ps.melt.ConD0_sum$Type2, levels = c("Dep",""))
+ps.melt.ConD0_sum$Pond <- factor(ps.melt.ConD0_sum$Pond, levels = c("LW","PLE","PM"))
+ps.melt.ConD0_sum$Pond_Treatment <- factor(ps.melt.ConD0_sum$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt.ConD0_sum$PW_Percentage <- factor(ps.melt.ConD0_sum$PW_Percentage, levels = c("0","1","25","50","75","100"))
+
+
+cols = c("#4E79A7","#A0CBE8","#F28E2B","#FFBE7D","#59A14F","#8CD17D","#86BCB6","#499894","#E15759","#FF9D9A","#79706E","#BAB0AC","#D37295","#FABFD2","#B6992D","#F1CE63","#B07AA1","#D4A6C8","#9D7660","#D7B5A6")
+c1<-ggplot(ps.melt.ConD0_sum , aes(x = Sample, y = Abundance, fill = Family)) + 
+  geom_bar(stat = "identity", aes(fill=Family)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Family",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=10),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4, "mm"))
+
+ggexport(c1, filename="Water_ConD0_Family_names.pdf", width = 8, height = 4)
+
+c2<-ggplot(ps.melt.ConD0_sum , aes(x = Sample, y = Abundance, fill = Family)) + 
+  geom_bar(stat = "identity", aes(fill=Family)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Family",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=0),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4, "mm"))
+
+ggexport(c2, filename="Water_ConD0_Family.pdf", width = 8, height = 4)
+
+
+# Plot Control D6 Water Samples
+ps.melt.ConD6_sum$Type2 <- factor(ps.melt.ConD6_sum$Type2, levels = c("Dep",""))
+ps.melt.ConD6_sum$Pond <- factor(ps.melt.ConD6_sum$Pond, levels = c("LW","PLE","PM"))
+ps.melt.ConD6_sum$Pond_Treatment <- factor(ps.melt.ConD6_sum$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt.ConD6_sum$PW_Percentage <- factor(ps.melt.ConD6_sum$PW_Percentage, levels = c("0","1","25","50","75","100"))
+
+
+cols = c("#4E79A7","#A0CBE8","#F28E2B","#FFBE7D","#59A14F","#8CD17D","#B6992D","#F1CE63","#86BCB6","#499894","#E15759","#FF9D9A","#79706E","#BAB0AC","#D37295","#FABFD2","#B07AA1","#D4A6C8","#9D7660","#D7B5A6","#4E79A7","#A0CBE8")
+c1<-ggplot(ps.melt.ConD6_sum , aes(x = Sample, y = Abundance, fill = Family)) + 
+  geom_bar(stat = "identity", aes(fill=Family)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Family",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=10),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4, "mm"))
+
+ggexport(c1, filename="Water_ConD6_Family_names.pdf", width = 8, height = 4)
+
+c2<-ggplot(ps.melt.ConD6_sum , aes(x = Sample, y = Abundance, fill = Family)) + 
+  geom_bar(stat = "identity", aes(fill=Family)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name=NULL,
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=0),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.position = "none",
+        legend.key.height = unit(3, "mm"))
+
+ggexport(c2, filename="Water_ConD6_Family.pdf", width = 6.2, height = 4)
+
+
+# Plot Inhab Water Samples
+ps.melt.Inhab_sum$Type2 <- factor(ps.melt.Inhab_sum$Type2, levels = c("Dep",""))
+ps.melt.Inhab_sum$Pond <- factor(ps.melt.Inhab_sum$Pond, levels = c("LW","PLE","PM"))
+ps.melt.Inhab_sum$Pond_Treatment <- factor(ps.melt.Inhab_sum$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt.Inhab_sum$PW_Percentage <- factor(ps.melt.Inhab_sum$PW_Percentage, levels = c("0","1","25","50","75","100"))
+
+
+cols = c("#4E79A7","#FFBE7D","#59A14F","#8CD17D","#499894","#B07AA1","#FF9D9A","#A0CBE8","#D7B5A6","#F1CE63","#F28E2B","#D4A6C8","#79706E","#E15759","#BAB0AC")
+c1<-ggplot(ps.melt.Inhab_sum , aes(x = Sample, y = Abundance, fill = Family)) + 
+  geom_bar(stat = "identity", aes(fill=Family)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Family",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=10),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c1, filename="Water_Inhab_Family_names.pdf", width = 8, height = 4)
+
+c2<-ggplot(ps.melt.Inhab_sum , aes(x = Sample, y = Abundance, fill = Family)) + 
+  geom_bar(stat = "identity", aes(fill=Family)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Family",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type2~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=0),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c2, filename="Water_Inhab_Family.pdf", width = 8, height = 4)
+```
+
+
+# GUT
+
+```{r Gut}
+# Clear workspace
+rm(list=ls())
+
+# BUILD PHYLOSEQ
+otu <- read.table(file = "/exported-gut/gut-decontam-sans-a-m-c-t-k.tsv", sep = "\t", header = T, row.names = 1, comment.char = "")
+
+taxonomy <- read.table(file = "/exported-gut/taxonomy.tsv", sep = "\t", header = T ,row.names = 1)
+
+# clean the taxonomy, Greengenes format
+tax <- taxonomy %>%
+  select(Taxon) %>% 
+  separate(Taxon, c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"), "; ")
+
+tax.clean <- data.frame(row.names = row.names(tax),
+                        Kingdom = str_replace(tax[,1], "k__",""),
+                        Phylum = str_replace(tax[,2], "p__",""),
+                        Class = str_replace(tax[,3], "c__",""),
+                        Order = str_replace(tax[,4], "o__",""),
+                        Family = str_replace(tax[,5], "f__",""),
+                        Genus = str_replace(tax[,6], "g__",""),
+                        Species = str_replace(tax[,7], "s__",""),
+                        stringsAsFactors = FALSE)
+
+tax.clean[is.na(tax.clean)] <- ""
+tax.clean[tax.clean=="__"] <- ""
+
+for (i in 1:nrow(tax.clean)){
+  if (tax.clean[i,7] != ""){
+    tax.clean$Species[i] <- paste(tax.clean$Genus[i], tax.clean$Species[i], sep = " ")
+  } else if (tax.clean[i,2] == ""){
+    kingdom <- paste("Unclassified", tax.clean[i,1], sep = " ")
+    tax.clean[i, 2:7] <- kingdom
+  } else if (tax.clean[i,3] == ""){
+    phylum <- paste("Unclassified", tax.clean[i,2], sep = " ")
+    tax.clean[i, 3:7] <- phylum
+  } else if (tax.clean[i,4] == ""){
+    class <- paste("Unclassified", tax.clean[i,3], sep = " ")
+    tax.clean[i, 4:7] <- class
+  } else if (tax.clean[i,5] == ""){
+    order <- paste("Unclassified", tax.clean[i,4], sep = " ")
+    tax.clean[i, 5:7] <- order
+  } else if (tax.clean[i,6] == ""){
+    family <- paste("Unclassified", tax.clean[i,5], sep = " ")
+    tax.clean[i, 6:7] <- family
+  } else if (tax.clean[i,7] == ""){
+    tax.clean$Species[i] <- paste("Unclassified ",tax.clean$Genus[i], sep = " ")
+  }
+}
+
+# load metadata
+metadata <- read.table(file = "/core-metrics-results-gut/Tadpole_Metadata_Gut_Alpha.txt", sep = "\t", header = FALSE, row.names=1, skip=1)
+colnames(metadata)<-c("name","Type","Type2","Tank_ID","Tadpole #","Day","Group","Pond_Treatment","Pond","PW_Percentage","Percentage","Treatment","Tannins (Y/N)","Tadpole Weight (g)","Tadpole Length (mm)","Gosner Stage","log(Mass)","log(length)","ASVs","Shannon","Faiths","Evenness")
+OTU = otu_table(as.matrix(otu), taxa_are_rows = TRUE)
+TAX = tax_table(as.matrix(tax.clean))
+SAMPLE <- sample_data(metadata)
+TREE = read_tree("/exported-gut/tree.nwk")
+
+# merge the data
+ps <- phyloseq(OTU, TAX, SAMPLE,TREE)
+
+# Abundance bar plot by Phylum - Growth and culture conditions 
+# change to character for easy-adjusted level
+ps.rel = transform_sample_counts(ps, function(x) x/sum(x)*100)
+# agglomerate taxa
+glom <- tax_glom(ps.rel, taxrank = 'Phylum', NArm = FALSE)
+
+ps.melt <- psmelt(glom)
+
+ps.melt$Phylum <- as.character(ps.melt$Phylum)
+ps.melt$Type <- factor(ps.melt$Type, levels = c("Dep",""))
+ps.melt$Pond <- factor(ps.melt$Pond, levels = c("LW","PLE","PM"))
+ps.melt$Pond_Treatment <- factor(ps.melt$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt$PW_Percentage <- factor(ps.melt$PW_Percentage, levels = c(0, 1, 25, 50, 100))
+
+#add median to the tables
+ps.melt <- ps.melt %>%
+  group_by(Type, Pond, Pond_Treatment, PW_Percentage, Phylum) %>%
+  mutate(median=median(Abundance))
+
+# select group median > 1
+keep <- unique(ps.melt$Phylum[ps.melt$median > 1])
+ps.melt$Phylum[!(ps.melt$Phylum %in% keep)] <- "< 1% Abundance"
+
+#to get the same rows together
+ps.melt_sum <- ps.melt %>%
+  group_by(Sample, Type, Pond, Pond_Treatment, PW_Percentage, Phylum) %>%
+  summarise(Abundance=sum(Abundance))
+
+
+# Plot Dep and Con Groupings
+ps.melt_sum$Type <- factor(ps.melt_sum$Type, levels = c("Dep",""))
+ps.melt_sum$Pond <- factor(ps.melt_sum$Pond, levels = c("LW","PLE","PM"))
+ps.melt_sum$Pond_Treatment <- factor(ps.melt_sum$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt_sum$PW_Percentage <- factor(ps.melt_sum$PW_Percentage, levels = c(0, 1, 25, 50, 100))
+
+cols = c("#4E79A7","#A0CBE8","#F28E2B","#FFBE7D","#59A14F","#8CD17D","#B6992D","#F1CE63","#499894")
+c1<-ggplot(ps.melt_sum , aes(x = Sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", aes(fill=Phylum)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Phylum",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=10),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12))
+
+ggexport(c1, filename="Gut_Dep_Con_Phylum_names.pdf", width = 8, height = 4)
+
+c2<-ggplot(ps.melt_sum , aes(x = Sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", aes(fill=Phylum)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Phylum",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=0),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12))
+
+ggexport(c2, filename="Gut_Dep_Con_Phylum.pdf", width = 8, height = 4)
+
+
+##By Family
+ps.rel = transform_sample_counts(ps, function(x) x/sum(x)*100)
+glom <- tax_glom(ps.rel, taxrank = 'Family', NArm = FALSE)
+
+ps.melt <- psmelt(glom)
+
+ps.melt$Family <- as.character(ps.melt$Family)
+ps.melt$Type <- factor(ps.melt$Type, levels = c("Dep",""))
+ps.melt$Pond <- factor(ps.melt$Pond, levels = c("LW","PLE","PM"))
+ps.melt$Pond_Treatment <- factor(ps.melt$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt$PW_Percentage <- factor(ps.melt$PW_Percentage, levels = c(0, 1, 25, 50, 100))
+
+#add median to the tables
+ps.melt <- ps.melt %>%
+  group_by(Type, Pond, Pond_Treatment, PW_Percentage, Family) %>%
+  mutate(median=median(Abundance))
+
+# select group median > 1
+keep <- unique(ps.melt$Family[ps.melt$median > 5])
+ps.melt$Family[!(ps.melt$Family %in% keep)] <- "< 5% Abundance"
+
+#to get the same rows together
+ps.melt_sum <- ps.melt %>%
+  group_by(Sample, Type, Pond, Pond_Treatment, PW_Percentage, Family) %>%
+  summarise(Abundance=sum(Abundance))
+
+# Plot Dep and Con Groupings
+ps.melt_sum$Type <- factor(ps.melt_sum$Type, levels = c("Dep",""))
+ps.melt_sum$Pond <- factor(ps.melt_sum$Pond, levels = c("LW","PLE","PM"))
+ps.melt_sum$Pond_Treatment <- factor(ps.melt_sum$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt_sum$PW_Percentage <- factor(ps.melt_sum$PW_Percentage, levels = c(0, 1, 25, 50, 100))
+
+cols <- c("#4E79A7","#A0CBE8","#F28E2B","#FFBE7D","#59A14F","#B07AA1","#B6992D","#F1CE63","#499894","#86BCB6","#E15759","#FF9D9A","#79706E")
+c1<-ggplot(ps.melt_sum , aes(x = Sample, y = Abundance, fill = Family)) + 
+  geom_bar(stat = "identity", aes(fill=Family)) + 
+  labs(x="", y="% Relative Abundance") +
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Family",
+  )+
+  facet_wrap(Type~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=10),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c1, filename="Gut_Dep_Con_Family_names.pdf", width = 8, height = 4)
+
+c2<-ggplot(ps.melt_sum , aes(x = Sample, y = Abundance, fill = Family)) + 
+  geom_bar(stat = "identity", aes(fill=Family)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Family",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=0),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c2, filename="Gut_Dep_Con_Family.pdf", width = 8, height = 4)
+
+##By Genus
+ps.rel = transform_sample_counts(ps, function(x) x/sum(x)*100)
+glom <- tax_glom(ps.rel, taxrank = 'Genus', NArm = FALSE)
+
+ps.melt <- psmelt(glom)
+
+ps.melt$Genus <- as.character(ps.melt$Genus)
+ps.melt$Type <- factor(ps.melt$Type, levels = c("Dep",""))
+ps.melt$Pond <- factor(ps.melt$Pond, levels = c("LW","PLE","PM"))
+ps.melt$Pond_Treatment <- factor(ps.melt$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt$PW_Percentage <- factor(ps.melt$PW_Percentage, levels = c(0, 1, 25, 50, 100))
+
+#add median to the tables
+ps.melt <- ps.melt %>%
+  group_by(Type, Pond, Pond_Treatment, PW_Percentage, Genus) %>%
+  mutate(median=median(Abundance))
+
+# select group median > 1
+keep <- unique(ps.melt$Genus[ps.melt$median > 5])
+ps.melt$Genus[!(ps.melt$Genus %in% keep)] <- "< 5% Abundance"
+
+#to get the same rows together
+ps.melt_sum <- ps.melt %>%
+  group_by(Sample, Type, Pond, Pond_Treatment, PW_Percentage, Genus) %>%
+  summarise(Abundance=sum(Abundance))
+
+# Plot Dep and Con Groupings
+ps.melt_sum$Type <- factor(ps.melt_sum$Type, levels = c("Dep",""))
+ps.melt_sum$Pond <- factor(ps.melt_sum$Pond, levels = c("LW","PLE","PM"))
+ps.melt_sum$Pond_Treatment <- factor(ps.melt_sum$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt_sum$PW_Percentage <- factor(ps.melt_sum$PW_Percentage, levels = c(0, 1, 25, 50, 100))
+
+cols <- c("#4E79A7","#A0CBE8","#FFBE7D","#F28E2B","#59A14F","#8CD17D","#B6992D","#F1CE63","#499894","#86BCB6","#E15759","#FF9D9A","#79706E")
+c1<-ggplot(ps.melt_sum , aes(x = Sample, y = Abundance, fill = Genus)) + 
+  geom_bar(stat = "identity", aes(fill=Genus)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Genus",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=10),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c1, filename="Gut_Dep_Con_Genus_names.pdf", width = 8, height = 4)
+
+c2<-ggplot(ps.melt_sum , aes(x = Sample, y = Abundance, fill = Genus)) + 
+  geom_bar(stat = "identity", aes(fill=Genus)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Genus",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=0),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12),
+        legend.key.height = unit(4.5, "mm"))
+
+ggexport(c2, filename="Gut_Dep_Con_Genus.pdf", width = 8, height = 4)
+```
+
+## SKIN
+```{r Skin}
+# Clear workspace
+rm(list=ls())
+
+# BUILD PHYLOSEQ
+otu2 <- read.table(file = "/exported-skin/skin-decontam-sans-a-m-c-t-k.tsv", sep = "\t", header = T, row.names = 1, comment.char = "")
+
+taxonomy2 <- read.table(file = "/exported-skin/taxonomy.tsv", sep = "\t", header = T ,row.names = 1)
+
+# clean the taxonomy, Greengenes format
+tax <- taxonomy2 %>%
+  select(Taxon) %>% 
+  separate(Taxon, c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"), "; ")
+
+tax.clean <- data.frame(row.names = row.names(tax),
+                        Kingdom = str_replace(tax[,1], "k__",""),
+                        Phylum = str_replace(tax[,2], "p__",""),
+                        Class = str_replace(tax[,3], "c__",""),
+                        Order = str_replace(tax[,4], "o__",""),
+                        Family = str_replace(tax[,5], "f__",""),
+                        Genus = str_replace(tax[,6], "g__",""),
+                        Species = str_replace(tax[,7], "s__",""),
+                        stringsAsFactors = FALSE)
+
+tax.clean[is.na(tax.clean)] <- ""
+tax.clean[tax.clean=="__"] <- ""
+
+for (i in 1:nrow(tax.clean)){
+  if (tax.clean[i,7] != ""){
+    tax.clean$Species[i] <- paste(tax.clean$Genus[i], tax.clean$Species[i], sep = " ")
+  } else if (tax.clean[i,2] == ""){
+    kingdom <- paste("Unclassified", tax.clean[i,1], sep = " ")
+    tax.clean[i, 2:7] <- kingdom
+  } else if (tax.clean[i,3] == ""){
+    phylum <- paste("Unclassified", tax.clean[i,2], sep = " ")
+    tax.clean[i, 3:7] <- phylum
+  } else if (tax.clean[i,4] == ""){
+    class <- paste("Unclassified", tax.clean[i,3], sep = " ")
+    tax.clean[i, 4:7] <- class
+  } else if (tax.clean[i,5] == ""){
+    order <- paste("Unclassified", tax.clean[i,4], sep = " ")
+    tax.clean[i, 5:7] <- order
+  } else if (tax.clean[i,6] == ""){
+    family <- paste("Unclassified", tax.clean[i,5], sep = " ")
+    tax.clean[i, 6:7] <- family
+  } else if (tax.clean[i,7] == ""){
+    tax.clean$Species[i] <- paste("Unclassified ",tax.clean$Genus[i], sep = " ")
+  }
+}
+
+# load metadata
+metadata2 <- read.table(file = "/core-metrics-results-skin/Tadpole_Metadata_Skin_Alpha.txt", sep = "\t", header = FALSE, row.names=1, skip=1)
+colnames(metadata2)<-c("name","absolute-filepath","direction","Type","Control","Tank_ID","Tadpole #","Group","Pond_Treatment","Pond","PW_Percentage","Percentage","Treatment","Tannins (Y/N)","Tadpole Weight (g)","Tadpole Length", "Gosner Stage","log(Mass)","log(length)","ASVs","Shannon","Faiths","Evenness")
+OTU2 = otu_table(as.matrix(otu2), taxa_are_rows = TRUE)
+TAX2 = tax_table(as.matrix(tax.clean))
+SAMPLE <- sample_data(metadata2)
+TREE2 = read_tree("/exported-skin/tree.nwk")
+
+# merge the data
+ps <- phyloseq(OTU2, TAX2, SAMPLE2,TREE2)
+
+# Abundance bar plot by Phylum - Growth and culture conditions 
+# change to character for easy-adjusted level
+ps.rel = transform_sample_counts(ps, function(x) x/sum(x)*100)
+# agglomerate taxa
+glom <- tax_glom(ps.rel, taxrank = 'Phylum', NArm = FALSE)
+
+ps.melt <- psmelt(glom)
+
+ps.melt$Phylum <- as.character(ps.melt$Phylum)
+ps.melt$Type <- factor(ps.melt$Type, levels = c("Dep",""))
+ps.melt$Pond <- factor(ps.melt$Pond, levels = c("LW","PLE","PM"))
+ps.melt$Pond_Treatment <- factor(ps.melt$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt$PW_Percentage <- factor(ps.melt$PW_Percentage, levels = c(0, 1, 25, 50, 100))
+
+#add median to the tables
+ps.melt <- ps.melt %>%
+  group_by(Type, Pond, Pond_Treatment, PW_Percentage, Phylum) %>%
+  mutate(median=median(Abundance))
+
+# select group median > 1
+keep <- unique(ps.melt$Phylum[ps.melt$median > 1])
+ps.melt$Phylum[!(ps.melt$Phylum %in% keep)] <- "< 1% Abundance"
+
+#to get the same rows together
+ps.melt_sum <- ps.melt %>%
+  group_by(Sample, Type, Pond, Pond_Treatment, PW_Percentage, Phylum) %>%
+  summarise(Abundance=sum(Abundance))
+
+# Plot Dep and Con Groupings
+ps.melt_sum$Type <- factor(ps.melt_sum$Type, levels = c("Dep",""))
+ps.melt_sum$Pond <- factor(ps.melt_sum$Pond, levels = c("LW","PLE","PM"))
+ps.melt_sum$Pond_Treatment <- factor(ps.melt_sum$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt_sum$PW_Percentage <- factor(ps.melt_sum$PW_Percentage, levels = c(0, 1, 25, 50, 100))
+
+cols <- c("#4E79A7","#A0CBE8","#F28E2B","#59A14F","#9D7660","#8CD17D","#B6992D","#F1CE63","#499894")
+c1<-ggplot(ps.melt_sum , aes(x = Sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", aes(fill=Phylum)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Phylum",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=10),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12))
+
+ggexport(c1, filename="Skin_Dep_Con_Phylum_names.pdf", width = 8, height = 4)
+
+c2<-ggplot(ps.melt_sum , aes(x = Sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", aes(fill=Phylum)) + 
+
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Phylum",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=0),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12))
+
+ggexport(c2, filename="Skin_Dep_Con_Phylum.pdf", width = 8, height = 4)
+
+
+##By Family
+ps.rel = transform_sample_counts(ps, function(x) x/sum(x)*100)
+glom <- tax_glom(ps.rel, taxrank = 'Family', NArm = FALSE)
+
+ps.melt <- psmelt(glom)
+
+ps.melt$Family <- as.character(ps.melt$Family)
+ps.melt$Type <- factor(ps.melt$Type, levels = c("Dep",""))
+ps.melt$Pond <- factor(ps.melt$Pond, levels = c("LW","PLE","PM"))
+ps.melt$Pond_Treatment <- factor(ps.melt$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt$PW_Percentage <- factor(ps.melt$PW_Percentage, levels = c(0, 1, 25, 50, 100))
+
+#add median to the tables
+ps.melt <- ps.melt %>%
+  group_by(Type, Pond, Pond_Treatment, PW_Percentage, Family) %>%
+  mutate(median=median(Abundance))
+
+# select group median > 1
+keep <- unique(ps.melt$Family[ps.melt$median > 5])
+ps.melt$Family[!(ps.melt$Family %in% keep)] <- "< 5% Abundance"
+
+#to get the same rows together
+ps.melt_sum <- ps.melt %>%
+  group_by(Sample, Type, Pond, Pond_Treatment, PW_Percentage, Family) %>%
+  summarise(Abundance=sum(Abundance))
+
+# Plot Dep and Con Groupings
+ps.melt_sum$Type <- factor(ps.melt_sum$Type, levels = c("Dep",""))
+ps.melt_sum$Pond <- factor(ps.melt_sum$Pond, levels = c("LW","PLE","PM"))
+ps.melt_sum$Pond_Treatment <- factor(ps.melt_sum$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt_sum$PW_Percentage <- factor(ps.melt_sum$PW_Percentage, levels = c(0, 1, 25, 50, 100))
+
+cols <- c("#4E79A7","#A0CBE8","#FFBE7D","#D4A6C8","#8CD17D","#B6992D","#9D7660","#FF9D9A")
+c1<-ggplot(ps.melt_sum , aes(x = Sample, y = Abundance, fill = Family)) + 
+  geom_bar(stat = "identity", aes(fill=Family)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Family",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=10),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12))
+
+ggexport(c1, filename="Skin_Dep_Con_Family_names.pdf", width = 8, height = 4)
+
+c2<-ggplot(ps.melt_sum , aes(x = Sample, y = Abundance, fill = Family)) + 
+  geom_bar(stat = "identity", aes(fill=Family)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Family",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=0),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12))
+
+ggexport(c2, filename="Skin_Dep_Con_Family.pdf", width = 8, height = 4)
+
+
+##By Genus
+ps.rel = transform_sample_counts(ps, function(x) x/sum(x)*100)
+glom <- tax_glom(ps.rel, taxrank = 'Genus', NArm = FALSE)
+
+ps.melt <- psmelt(glom)
+
+ps.melt$Genus <- as.character(ps.melt$Genus)
+ps.melt$Type <- factor(ps.melt$Type, levels = c("Dep",""))
+ps.melt$Pond <- factor(ps.melt$Pond, levels = c("LW","PLE","PM"))
+ps.melt$Pond_Treatment <- factor(ps.melt$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt$PW_Percentage <- factor(ps.melt$PW_Percentage, levels = c(0, 1, 25, 50, 100))
+
+#add median to the tables
+ps.melt <- ps.melt %>%
+  group_by(Type, Pond, Pond_Treatment, PW_Percentage, Genus) %>%
+  mutate(median=median(Abundance))
+
+# select group median > 1
+keep <- unique(ps.melt$Genus[ps.melt$median > 5])
+ps.melt$Genus[!(ps.melt$Genus %in% keep)] <- "< 5% Abundance"
+
+#to get the same rows together
+ps.melt_sum <- ps.melt %>%
+  group_by(Sample, Type, Pond, Pond_Treatment, PW_Percentage, Genus) %>%
+  summarise(Abundance=sum(Abundance))
+
+# Plot Dep and Con Groupings
+ps.melt_sum$Type <- factor(ps.melt_sum$Type, levels = c("Dep",""))
+ps.melt_sum$Pond <- factor(ps.melt_sum$Pond, levels = c("LW","PLE","PM"))
+ps.melt_sum$Pond_Treatment <- factor(ps.melt_sum$Pond_Treatment, levels = c("LW","A-PLE","F-PLE","A-PM","F-PM","PLE","PM"))
+ps.melt_sum$PW_Percentage <- factor(ps.melt_sum$PW_Percentage, levels = c(0, 1, 25, 50, 100))
+
+cols <- c("#4E79A7","#A0CBE8","#BAB0AC","#F28E2B","#F1CE63","#B07AA1","#D4A6C8","#79706E")
+c1<-ggplot(ps.melt_sum , aes(x = Sample, y = Abundance, fill = Genus)) + 
+  geom_bar(stat = "identity", aes(fill=Genus)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Genus",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=10),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12))
+
+ggexport(c1, filename="Skin_Dep_Con_Genus_names.pdf", width = 8, height = 4)
+
+c2<-ggplot(ps.melt_sum , aes(x = Sample, y = Abundance, fill = Genus)) + 
+  geom_bar(stat = "identity", aes(fill=Genus)) + 
+  scale_color_manual(
+    values = cols,
+    aesthetics = c("fill"),
+    name="Genus",
+  )+
+  labs(x="", y="% Relative Abundance") +
+  facet_wrap(Type~Pond+Pond_Treatment+PW_Percentage, scales= "free_x", nrow=1) +
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        axis.text.x=element_blank(),
+        strip.text = element_text(size=0),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=12))
+
+ggexport(c2, filename="Skin_Dep_Con_Genus.pdf", width = 8, height = 4)
+```

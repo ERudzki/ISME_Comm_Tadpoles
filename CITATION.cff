@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: "If you use this code or data, please cite the publication below."
+title: "Source and concentration of natural microbial inoculum influences growth, survival, and associated microbiota of larval amphibians"
+type: software
+authors:
+  - family-names: Rudzki
+    given-names: Elizabeth N.
+  - family-names: Chiang
+    given-names: Claire
+  - family-names: Yawitz
+    given-names: Tate A.
+  - family-names: Kohl
+    given-names: Kevin D.
+# repository-code: "https://github.com/OWNER/REPO"
+keywords:
+  - amphibian
+  - tadpole
+  - microbiome
+  - 16S rRNA
+  - QIIME2
+preferred-citation:
+  type: article
+  title: "Source and concentration of natural microbial inoculum influences growth, survival, and associated microbiota of larval amphibians"
+  authors:
+    - family-names: Rudzki
+      given-names: Elizabeth N.
+    - family-names: Chiang
+      given-names: Claire
+    - family-names: Yawitz
+      given-names: Tate A.
+    - family-names: Kohl
+      given-names: Kevin D.
+  # Fill in once the article is published:
+  # journal: "JOURNAL NAME"
+  # year: 2026
+  # volume: 
+  # issue: 
+  # start: 
+  # end: 
+  # doi: "10.xxxx/xxxxx"

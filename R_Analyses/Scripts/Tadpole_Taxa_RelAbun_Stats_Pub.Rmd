@@ -1,0 +1,292 @@
+---
+title: "Tadpole_Bacterial_Relative_Abundance_Statistics"
+author: "Elizabeth N. Rudzki"
+date: "2025-07-02"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+if (!requireNamespace("pacman", quietly = TRUE)){install.packages("pacman")}
+
+pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
+
+if (!requireNamespace("tidyverse", quietly = TRUE)){install.packages("tidyverse")}
+library(tidyverse)
+
+if (!requireNamespace("DescTools", quietly = TRUE)){install.packages("DescTools")}
+library(DescTools)
+
+if (!requireNamespace("dplyr", quietly = TRUE)){install.packages("dplyr")}
+library(dplyr)
+
+if (!requireNamespace("knitr", quietly = TRUE)){install.packages("knitr")}
+library(knitr)
+```
+
+# Session Info
+<button class="btn btn-primary" data-toggle="collapse" data-target="#mySection">
+  Show/Hide Session Info
+</button>
+
+<div id="mySection" class="collapse">
+```{r info, echo=FALSE, results = 'asis'}
+attached <- utils::sessionInfo()
+cat(attached$R.version$version.string)
+```
+
+```{r info2, echo=FALSE, results = 'asis'}
+cat(attached$platform)
+```
+
+## Dependencies
+
+### Attached Base Packages
+
+```{r base, echo=FALSE, results = 'asis'}
+base <- attached$basePkgs
+if (length(base) > 1) {
+  cat(paste(paste(base[-length(base)], collapse = ", "), "and", base[length(base)]))
+} else {
+  cat(base)
+}
+```
+
+### Attached Other Packages
+
+```{r dependencies, echo=FALSE}
+# Grab other attached packages
+otherPkgs <- attached$otherPkgs
+# Create a dataframe of the package names, versions, and their imports
+pkg_df <- data.frame(
+  Package = sapply(otherPkgs, function(pkg) pkg$Package),
+  Version = sapply(otherPkgs, function(pkg) pkg$Version),
+  Imports = sapply(otherPkgs, function(pkg) pkg$Imports),
+  stringsAsFactors = FALSE
+)
+pkg_df$Imports <- gsub("\n", " ", pkg_df$Imports)
+rownames(pkg_df) <- NULL
+# Print other attached package info
+kable(pkg_df)
+```
+</div>
+
+# Nomenclature
+
+The manuscript and code files may utilize different naming conventions for groups and treatments as follows:
+
+**Manuscript Name**  | **Related Script Name(s)**
+------------- | -------------
+Sample Type  | Type
+Microbial Depletion  | Depletion, Dep, or Treatment
+Microbial Density  | Concentration, Con, PW_Percentage, or Percentage
+Pond Source | Pond, or Pond_Treatment
+
+# Jonckheere Terpstra Test {.tabset}
+
+## Description
+
+To test for a monotonic (a function between ordered sets that preserves the given order) trend (correlation) across ordered groups (i.e., ordinal IV), this code will use a Jonckheere-Terpstra Test. Your dependent variable must be continuous or ordinal, and you must expect increasing or decreasing trends (not just any difference).
+
+The exact calculation requires that there be no ties and that the sample size is less than 100.
+
+When data are tied and sample size is at most 100 permutation p-value is returned. Recommend that the user set nperm to be 1000 or higher if permutation p-value is desired.
+
+```{r seed, include=FALSE}
+## SET SEED
+set.seed(745869)
+### This will allow others to reproduce your exact numbers.
+```
+
+## Gut Samples {.tabset .tabset-pills}
+
+### PLE
+
+```{r Gut_PLE, warning=FALSE}
+gut <- read.csv("/Taxa_Abundance_Statistics/Gut_Con_RelAbun.csv", header = TRUE)
+
+gutple <- gut[ which(gut$Pond == "PLE"), ]
+
+#### Formula of the form lhs ~ rhs where lhs gives the data values and rhs the corresponding groups.
+
+jt_results_gutple <- gutple %>%
+  group_by(Taxonomic_Family) %>%
+  summarise(
+    JT_statistic = JonckheereTerpstraTest(Rel_Abun ~ Percentage, nperm = 5000)$statistic,
+    P_value = JonckheereTerpstraTest(Rel_Abun ~ Percentage, nperm = 5000)$p.value
+  ) %>%
+  mutate(BH_adj_pval = p.adjust(P_value, method = "BH"))
+
+jt_results_gutple
+write.csv(jt_results_gutple, "Gut_PLECon_JT_BHadj_pvals2.csv", row.names = FALSE)
+```
+
+### PM
+
+```{r Gut_PM, warning=FALSE}
+gutpm <- gut[ which(gut$Pond == "PM"), ]
+
+#### Formula of the form lhs ~ rhs where lhs gives the data values and rhs the corresponding groups.
+
+jt_results_gutpm <- gutpm %>%
+  group_by(Taxonomic_Family) %>%
+  summarise(
+    JT_statistic = JonckheereTerpstraTest(Rel_Abun ~ Percentage, nperm = 5000)$statistic,
+    P_value = JonckheereTerpstraTest(Rel_Abun ~ Percentage, nperm = 5000)$p.value
+  ) %>%
+  mutate(BH_adj_pval = p.adjust(P_value, method = "BH"))
+
+jt_results_gutpm
+write.csv(jt_results_gutpm, "Gut_PMCon_JT_BHadj_pvals2.csv", row.names = FALSE)
+```
+
+## Skin Samples {.tabset .tabset-pills}
+
+### PLE
+
+```{r Skin_PLE, warning=FALSE}
+skin <- read.csv("/Taxa_Abundance_Statistics/Skin_Con_RelAbun.csv", header = TRUE)
+
+skinple <- skin[ which(skin$Pond == "PLE"), ]
+
+#### Formula of the form lhs ~ rhs where lhs gives the data values and rhs the corresponding groups.
+
+jt_results_skinple <- skinple %>%
+  group_by(Taxonomic_Family) %>%
+  summarise(
+    JT_statistic = JonckheereTerpstraTest(Rel_Abun ~ Percentage, nperm = 5000)$statistic,
+    P_value = JonckheereTerpstraTest(Rel_Abun ~ Percentage, nperm = 5000)$p.value
+  ) %>%
+  mutate(BH_adj_pval = p.adjust(P_value, method = "BH"))
+
+jt_results_skinple
+write.csv(jt_results_skinple, "Skin_PLECon_JT_BHadj_pvals2.csv", row.names = FALSE)
+```
+
+### PM
+
+```{r Skin_PM, warning=FALSE}
+skinpm <- skin[ which(skin$Pond == "PM"), ]
+
+#### Formula of the form lhs ~ rhs where lhs gives the data values and rhs the corresponding groups.
+
+jt_results_skinpm <- skinpm %>%
+  group_by(Taxonomic_Family) %>%
+  summarise(
+    JT_statistic = JonckheereTerpstraTest(Rel_Abun ~ Percentage, nperm = 5000)$statistic,
+    P_value = JonckheereTerpstraTest(Rel_Abun ~ Percentage, nperm = 5000)$p.value
+  ) %>%
+  mutate(BH_adj_pval = p.adjust(P_value, method = "BH"))
+
+jt_results_skinpm
+write.csv(jt_results_skinpm, "Skin_PMCon_JT_BHadj_pvals2.csv", row.names = FALSE)
+```
+
+# Multiple Comparison Corrections for Kruskal-Wallis {.tabset}
+
+Here we are importing tables of Dunn's p-values (calculated in Prism) because we did these tests across 12 different taxon. Dunn's is already corrected for within-taxon comparisons, but we need to correct for doing this 12 separate times.
+
+## Gut Samples {.tabset .tabset-pills}
+
+### Depletion
+
+```{r GutDep, warning=FALSE}
+df <- read.csv("/Taxa_Abundance_Statistics/Gut_Dep_Dunns_ForCorrection.csv", header = TRUE, row.names=1)
+
+long_df <- df %>%
+  rownames_to_column(var = "Comparison") %>%  # move row names to a column if needed
+  pivot_longer(cols = -Comparison, 
+               names_to = "Taxon", 
+               values_to = "Pval")
+
+long_df$BH_adj_pval <- p.adjust(long_df$Pval, method = "BH")
+head(long_df)
+write.csv(long_df, "Gut_Dep_BHadj_pvals2.csv", row.names = FALSE)
+```
+
+### Source
+
+```{r GutSource, warning=FALSE}
+df2 <- read.csv("/Taxa_Abundance_Statistics/Gut_Source_Dunns_ForCorrection.csv", header = TRUE, row.names=1)
+
+long_df2 <- df2 %>%
+  rownames_to_column(var = "Comparison") %>%  # move row names to a column if needed
+  pivot_longer(cols = -Comparison, 
+               names_to = "Taxon", 
+               values_to = "Pval")
+
+long_df2$BH_adj_pval <- p.adjust(long_df2$Pval, method = "BH")
+head(long_df2)
+write.csv(long_df2, "Gut_Source_BHadj_pvals2.csv", row.names = FALSE)
+```
+
+## Skin Samples {.tabset .tabset-pills}
+
+### Depletion
+
+```{r SkinDep, warning=FALSE}
+df3 <- read.csv("/Taxa_Abundance_Statistics/Skin_Dep_Dunns_ForCorrection.csv", header = TRUE, row.names=1)
+
+long_df3 <- df3 %>%
+  rownames_to_column(var = "Comparison") %>%  # move row names to a column if needed
+  pivot_longer(cols = -Comparison, 
+               names_to = "Taxon", 
+               values_to = "Pval")
+
+long_df3$BH_adj_pval <- p.adjust(long_df3$Pval, method = "BH")
+head(long_df3)
+write.csv(long_df3, "Skin_Dep_BHadj_pvals2.csv", row.names = FALSE)
+```
+
+### Source
+
+```{r SkinSource, warning=FALSE}
+df4 <- read.csv("/Taxa_Abundance_Statistics/Skin_Source_Dunns_ForCorrection.csv", header = TRUE, row.names=1)
+
+long_df4 <- df4 %>%
+  rownames_to_column(var = "Comparison") %>%  # move row names to a column if needed
+  pivot_longer(cols = -Comparison, 
+               names_to = "Taxon", 
+               values_to = "Pval")
+
+long_df4$BH_adj_pval <- p.adjust(long_df4$Pval, method = "BH")
+head(long_df4)
+write.csv(long_df4, "Skin_Source_BHadj_pvals2.csv", row.names = FALSE)
+```
+
+## Water Samples
+
+Day 6 Tank samples, testing water source.
+
+### Source
+
+```{r WaterSource, warning=FALSE}
+df5 <- read.csv("/Taxa_Abundance_Statistics/Water_D6Tank_Source_Dunns_ForCorrection.csv", header = TRUE, row.names=1)
+
+long_df5 <- df5 %>%
+  rownames_to_column(var = "Comparison") %>%  # move row names to a column if needed
+  pivot_longer(cols = -Comparison, 
+               names_to = "Taxon", 
+               values_to = "Pval")
+
+long_df5$BH_adj_pval <- p.adjust(long_df5$Pval, method = "BH")
+head(long_df5)
+write.csv(long_df5, "Water_TankD6_Source_BHadj_pvals.csv", row.names = FALSE)
+
+# Correct overall Kruskal-Wallis P
+df6 <- read.csv("/Taxa_Abundance_Statistics/Water_D6Tank_Source_Kruskal_ForCorrection.csv", header = TRUE, row.names=1)
+long_df6 <- df6 %>%
+  rownames_to_column(var = "Comparison") %>%  # move row names to a column if needed
+  pivot_longer(cols = -Comparison, 
+               names_to = "Taxon", 
+               values_to = "Pval")
+
+long_df6$BH_adj_pval <- p.adjust(long_df6$Pval, method = "BH")
+head(long_df6)
+write.csv(long_df6, "Water_TankD6_Source_BHadj_Kruskalpvals.csv", row.names = FALSE)
+```
